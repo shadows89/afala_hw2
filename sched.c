@@ -62,6 +62,9 @@
 #define MAX_SLEEP_AVG		(2*HZ)
 #define STARVATION_LIMIT	(2*HZ)
 
+#define MAX_REQUESTED_TIME  (30 * HZ) /* ADDED */
+#define LSHORT_BONUS(remaining_time,level)  (2*level*(.5 - remaining_time/MAX_REQUESTED_TIME))	/* ADDED */	
+
 /*
  * If a task is 'interactive' then we reinsert it in the active
  * array after it has expired its current timeslice. (it will not
@@ -138,7 +141,7 @@ struct runqueue {
 	unsigned long nr_running, nr_switches, expired_timestamp;
 	signed long nr_uninterruptible;
 	task_t *curr, *idle;
-	prio_array_t *active, *expired, arrays[2];
+	prio_array_t *active, *expired, *lshort, *lshort_overdu, arrays[4];   /* ADDED + CHANGED */
 	int prev_nr_running[NR_CPUS];
 	task_t *migration_thread;
 	list_t migration_queue;
@@ -1167,7 +1170,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	else {
 		retval = -EINVAL;
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
-				policy != SCHED_OTHER)
+				policy != SCHED_OTHER && policy != SCHED_LSHORT)  /*ADDED*/
 			goto out_unlock;
 	}
 
@@ -1175,6 +1178,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	 * Valid priorities for SCHED_FIFO and SCHED_RR are
 	 * 1..MAX_USER_RT_PRIO-1, valid priority for SCHED_OTHER is 0.
 	 */
+
 	retval = -EINVAL;
 	if (lp.sched_priority < 0 || lp.sched_priority > MAX_USER_RT_PRIO-1)
 		goto out_unlock;
@@ -1188,6 +1192,14 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if ((current->euid != p->euid) && (current->euid != p->uid) &&
 	    !capable(CAP_SYS_NICE))
 		goto out_unlock;
+	if (policy == SCHED_LSHORT){
+		if(p->policy == SCHED_RR || p->policy == SCHED_FIFO))			
+			goto out_unlock;
+		if(param->lshort_params.requested_time > MAX_REQUESTED_TIME || param->lshort_params.requested_time <= 0)
+			goto out_unlock;
+		if(param->lshort_params.level < 1 || param->lshort_params.level > 50)
+			goto out_unlock;
+	}
 
 	array = p->array;
 	if (array)
@@ -1195,10 +1207,14 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	retval = 0;
 	p->policy = policy;
 	p->rt_priority = lp.sched_priority;
-	if (policy != SCHED_OTHER)
+	if (policy != SCHED_OTHER && policy != SCHED_LSHORT)            /*  ADDED +CHANGED from here  */
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
-	else
-		p->prio = p->static_prio;
+	else if(policy == SCHED_LSHORT){                               
+			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,param->lshort_params.level);
+			remaining_time = param->lshort_params.requested_time;
+			used_time = 0;
+		else
+			p->prio = p->static_prio;                               /* to here */
 	if (array)
 		activate_task(p, task_rq(p));
 

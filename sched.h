@@ -119,6 +119,7 @@ extern unsigned long nr_uninterruptible(void);
 #define SCHED_OTHER		0
 #define SCHED_FIFO		1
 #define SCHED_RR		2
+#define SCHED_LSHORT    3 /* ADDED */
 
 /* ADDED STRUCT */
 struct lshort_sched_param {
@@ -458,6 +459,10 @@ struct task_struct {
 
 /* journalling filesystem info */
 	void *journal_info;
+
+/* ADDED LSHORT params -- only accessed if proc is SCHED_LSHORT */
+	int remaining_time;
+	int used_time;
 };
 
 /*
@@ -563,6 +568,8 @@ extern struct exec_domain	default_exec_domain;
     blocked:		{{0}},						\
     alloc_lock:		SPIN_LOCK_UNLOCKED,				\
     journal_info:	NULL,						\
+    remaining_time: -1,     \
+	used_time:  -1,         \
 }
 
 
