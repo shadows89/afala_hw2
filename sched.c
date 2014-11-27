@@ -141,7 +141,7 @@ struct runqueue {
 	unsigned long nr_running, nr_switches, expired_timestamp;
 	signed long nr_uninterruptible;
 	task_t *curr, *idle;
-	prio_array_t *active, *expired, *lshort, *lshort_overdu, arrays[4];   /* ADDED + CHANGED */
+	prio_array_t *active, *expired, *lshort, *overdue_lshort, arrays[4];   /* ADDED + CHANGED */
 	int prev_nr_running[NR_CPUS];
 	task_t *migration_thread;
 	list_t migration_queue;
@@ -213,7 +213,7 @@ static inline void rq_unlock(runqueue_t *rq)
 /*
  * Adding/removing a task to/from a priority array:
  */
-static inline void dequeue_task(struct task_struct *p, prio_array_t *array)
+static inline void dequeue_task(struct task_struct *p, prio_array_t *array)    /* PROBLEM ????? */
 {
 	array->nr_active--;
 	list_del(&p->run_list);
@@ -1184,6 +1184,14 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		goto out_unlock;
 	if ((policy == SCHED_OTHER) != (lp.sched_priority == 0))
 		goto out_unlock;
+	if (policy == SCHED_LSHORT){         /* ADDED from here */
+		if(p->policy != SCHED_OTHER)			
+			goto out_unlock;
+		if(param->lshort_params.requested_time > MAX_REQUESTED_TIME || param->lshort_params.requested_time <= 0)
+			goto out_unlock;
+		if(param->lshort_params.level < 1 || param->lshort_params.level > 50)
+			goto out_unlock;
+	}                                      /* to here */
 
 	retval = -EPERM;
 	if ((policy == SCHED_FIFO || policy == SCHED_RR) &&
@@ -1192,14 +1200,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if ((current->euid != p->euid) && (current->euid != p->uid) &&
 	    !capable(CAP_SYS_NICE))
 		goto out_unlock;
-	if (policy == SCHED_LSHORT){
-		if(p->policy == SCHED_RR || p->policy == SCHED_FIFO))			
-			goto out_unlock;
-		if(param->lshort_params.requested_time > MAX_REQUESTED_TIME || param->lshort_params.requested_time <= 0)
-			goto out_unlock;
-		if(param->lshort_params.level < 1 || param->lshort_params.level > 50)
-			goto out_unlock;
-	}
+
 
 	array = p->array;
 	if (array)
@@ -1211,8 +1212,10 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else if(policy == SCHED_LSHORT){                               
 			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,param->lshort_params.level);
-			remaining_time = param->lshort_params.requested_time;
-			used_time = 0;
+			p->prio -= (31 + 20);  /* SHIFT + NICE */
+			p->remaining_time = param->lshort_params.requested_time;
+			p->used_time = 0;
+		}
 		else
 			p->prio = p->static_prio;                               /* to here */
 	if (array)

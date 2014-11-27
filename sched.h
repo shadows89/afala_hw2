@@ -463,6 +463,7 @@ struct task_struct {
 /* ADDED LSHORT params -- only accessed if proc is SCHED_LSHORT */
 	int remaining_time;
 	int used_time;
+	int level;
 };
 
 /*
