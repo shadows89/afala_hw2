@@ -651,6 +651,7 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_sched_getaffinity)
 	.long SYMBOL_NAME(sys_lshort_query_remaining_time)   /*ADDED SYS_CALL 243 */
 	.long SYMBOL_NAME(sys_lshort_query_overdue_time)   /*ADDED SYS_CALL 244 */
+	.long SYMBOL_NAME(sys_get_scheduling_statistic)   /*ADDED SYS_CALL 245 */
 
 	.rept NR_syscalls-(.-sys_call_table)/4
 		.long SYMBOL_NAME(sys_ni_syscall)
