@@ -28,3 +28,8 @@ int sys_lshort_query_overdue_time(int pid){
 	if(pd == NULL || pd->policy != SCHED_LSHORT)
 		return -EINVAL;
 }
+
+int sys_get_scheduling_statistic(struct switch_info *){
+	if(struct switch_info == NULL)
+		return -1;
+}
