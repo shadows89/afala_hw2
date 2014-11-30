@@ -258,9 +258,17 @@ static inline int effective_prio(task_t *p)
 static inline void activate_task(task_t *p, runqueue_t *rq)
 {
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
-	prio_array_t *array = rq->active;
+	prio_array_t *array;                                               /* ADDED + CHANGED from here */
+	if(p->policy == SCHED_LSHORT){
+		if(p->remaining_time == 0)
+			array = rq->overdue_lshort;
+		else
+			array = rq->lshort;
+	}
+	else
+		array = rq->active;												/* to here */
 
-	if (!rt_task(p) && sleep_time) {
+	if (p->policy != SCHED_LSHORT && !rt_task(p) && sleep_time) {   /* ADDED */
 		/*
 		 * This code gives a bonus to interactive tasks. We update
 		 * an 'average sleep time' value here, based on
@@ -283,8 +291,8 @@ static inline void deactivate_task(struct task_struct *p, runqueue_t *rq)
 	if (p->state == TASK_UNINTERRUPTIBLE)
 		rq->nr_uninterruptible++;
 	dequeue_task(p, p->array);
-	p->array = NULL;
-}
+;
+	p->array = NULL}
 
 static inline void resched_task(task_t *p)
 {
@@ -742,7 +750,7 @@ void scheduler_tick(int user_tick, int system)
 	kstat.per_cpu_system[cpu] += system;
 
 	/* Task might have expired already, but not scheduled off yet */
-	if (p->array != rq->active) {
+	if (p->policy!=SCHED_LSHORT && p->array != rq->active) {            /*ADDED*/
 		set_tsk_need_resched(p);
 		return;
 	}
@@ -762,6 +770,10 @@ void scheduler_tick(int user_tick, int system)
 			enqueue_task(p, rq->active);
 		}
 		goto out;
+	}
+
+	if (p->policy==SCHED_LSHORT) {
+	
 	}
 	/*
 	 * The task was running during this tick - update the
@@ -794,6 +806,19 @@ out:
 #endif
 	spin_unlock(&rq->lock);
 }
+  
+/* ADDED FUNCTION */
+task_t* try_find_lshort(prio_array_t array){
+	int idx;
+	list_t *queue;
+
+	if(array->nr_running){
+		idx = sched_find_first_bit(array->bitmap);
+		queue = array->queue + idx;
+		return list_entry(queue->next, task_t, run_list);
+	}
+	return NULL;
+}
 
 void scheduling_functions_start_here(void) { }
 
@@ -802,7 +827,7 @@ void scheduling_functions_start_here(void) { }
  */
 asmlinkage void schedule(void)
 {
-	task_t *prev, *next;
+	task_t *prev, *next, *possible;   /* ADDED */
 	runqueue_t *rq;
 	prio_array_t *array;
 	list_t *queue;
@@ -859,6 +884,11 @@ pick_next_task:
 	idx = sched_find_first_bit(array->bitmap);
 	queue = array->queue + idx;
 	next = list_entry(queue->next, task_t, run_list);
+	if(next->policy == SCHED_OTHER){                             /* ADDED from here */
+		possible = try_find_lshort(rq->lshort);
+		if(possible != NULL)
+			next = possible;
+	}															/* to here */	
 
 switch_tasks:
 	prefetch(next);
@@ -1187,9 +1217,9 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if (policy == SCHED_LSHORT){         /* ADDED from here */
 		if(p->policy != SCHED_OTHER)			
 			goto out_unlock;
-		if(param->lshort_params.requested_time > MAX_REQUESTED_TIME || param->lshort_params.requested_time <= 0)
+		if(lp.lshort_params.requested_time > MAX_REQUESTED_TIME || lp.lshort_params.requested_time <= 0)
 			goto out_unlock;
-		if(param->lshort_params.level < 1 || param->lshort_params.level > 50)
+		if(lp.lshort_params.level < 1 || lp.lshort_params.level > 50)
 			goto out_unlock;
 	}                                      /* to here */
 
@@ -1210,11 +1240,12 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	p->rt_priority = lp.sched_priority;
 	if (policy != SCHED_OTHER && policy != SCHED_LSHORT)            /*  ADDED +CHANGED from here  */
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
-	else if(policy == SCHED_LSHORT){                               
-			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,param->lshort_params.level);
-			p->prio -= (31 + 20);  /* SHIFT + NICE */
-			p->remaining_time = param->lshort_params.requested_time;
-			p->used_time = 0;
+	else if(policy == SCHED_LSHORT){  
+			p->remaining_time = lp.lshort_params.requested_time;                             
+			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp->lshort_params.level);
+			p->prio -= (30 + 20);  /* SHIFT + NICE */
+			p->remaining_time = lp.lshort_params.requested_time;
+			p->requested_time = lp.lshort_params.requested_time;
 		}
 		else
 			p->prio = p->static_prio;                               /* to here */
@@ -1275,6 +1306,8 @@ asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 	if (!p)
 		goto out_unlock;
 	lp.sched_priority = p->rt_priority;
+	lp.lshort_params.requested_time = p->requested_time; /*ADDED*/
+	lp.lshort_params.level = p->level;                   /*ADDED*/
 	read_unlock(&tasklist_lock);
 
 	/*
