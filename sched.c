@@ -291,8 +291,9 @@ static inline void deactivate_task(struct task_struct *p, runqueue_t *rq)
 	if (p->state == TASK_UNINTERRUPTIBLE)
 		rq->nr_uninterruptible++;
 	dequeue_task(p, p->array);
-;
-	p->array = NULL}
+
+	p->array = NULL;
+}
 
 static inline void resched_task(task_t *p)
 {
@@ -772,32 +773,41 @@ void scheduler_tick(int user_tick, int system)
 		goto out;
 	}
 
-	if (p->policy==SCHED_LSHORT) {
-	
-	}
-	/*
-	 * The task was running during this tick - update the
-	 * time slice counter and the sleep average. Note: we
-	 * do not update a process's priority until it either
-	 * goes to sleep or uses up its timeslice. This makes
-	 * it possible for interactive tasks to use up their
-	 * timeslices at their highest priority levels.
-	 */
-	if (p->sleep_avg)
-		p->sleep_avg--;
-	if (!--p->time_slice) {
-		dequeue_task(p, rq->active);
-		set_tsk_need_resched(p);
-		p->prio = effective_prio(p);
-		p->first_time_slice = 0;
-		p->time_slice = TASK_TIMESLICE(p);
+	if (p->policy==SCHED_LSHORT) {                   /*ADDED from here*/
+		if (--p->time_slice){ 
+			--p->remaining_time;
+			goto out;
+		}
+		else{
+			dequeue_task(p, rq->lshort);
+			enqueue_task(p, rq->overdue_lshort);
+		}
+	}                                                /* to here*/
+	else{
+		/*
+	 	* The task was running during this tick - update the
+	 	* time slice counter and the sleep average. Note: we
+	 	* do not update a process's priority until it either
+	 	* goes to sleep or uses up its timeslice. This makes
+	 	* it possible for interactive tasks to use up their
+	 	* timeslices at their highest priority levels.
+	 	*/
+		if (p->sleep_avg)
+			p->sleep_avg--;
+		if (!--p->time_slice) {
+			dequeue_task(p, rq->active);
+			set_tsk_need_resched(p);
+			p->prio = effective_prio(p);
+			p->first_time_slice = 0;
+			p->time_slice = TASK_TIMESLICE(p);
 
-		if (!TASK_INTERACTIVE(p) || EXPIRED_STARVING(rq)) {
-			if (!rq->expired_timestamp)
-				rq->expired_timestamp = jiffies;
-			enqueue_task(p, rq->expired);
-		} else
-			enqueue_task(p, rq->active);
+			if (!TASK_INTERACTIVE(p) || EXPIRED_STARVING(rq)) {
+				if (!rq->expired_timestamp)
+					rq->expired_timestamp = jiffies;
+				enqueue_task(p, rq->expired);
+			} else
+				enqueue_task(p, rq->active);
+		}
 	}
 out:
 #if CONFIG_SMP
@@ -875,10 +885,15 @@ pick_next_task:
 		/*
 		 * Switch the active and expired arrays.
 		 */
-		rq->active = rq->expired;
-		rq->expired = array;
-		array = rq->active;
-		rq->expired_timestamp = 0;
+		next = try_find_lshort(rq->overdue_lshort);
+		if(next == NULL){
+			rq->active = rq->expired;
+			rq->expired = array;
+			array = rq->active;
+			rq->expired_timestamp = 0;
+		}
+		else
+			goto switch_tasks;
 	}
 
 	idx = sched_find_first_bit(array->bitmap);
@@ -1674,11 +1689,13 @@ void __init sched_init(void)
 
 		rq = cpu_rq(i);
 		rq->active = rq->arrays;
-		rq->expired = rq->arrays + 1;
+		rq->expired = rq->arrays + 1; 
+ 		rq->lshort = rq->arrays + 2; 					/*ADDED*/
+		rq->overdue_lshort = rq->arrays + 3;			/*ADDED*/
 		spin_lock_init(&rq->lock);
 		INIT_LIST_HEAD(&rq->migration_queue);
 
-		for (j = 0; j < 2; j++) {
+		for (j = 0; j < 4; j++) {						/*CHANGED*/
 			array = rq->arrays + j;
 			for (k = 0; k < MAX_PRIO; k++) {
 				INIT_LIST_HEAD(array->queue + k);
