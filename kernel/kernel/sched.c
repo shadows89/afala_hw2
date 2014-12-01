@@ -787,8 +787,9 @@ void scheduler_tick(int user_tick, int system)
 		set_tsk_need_resched(p);
 		return;
 	}
-	spin_lock(&rq->lock);
-	if (unlikely(rt_task(p))) {
+
+
+	else if (unlikely(rt_task(p)) && (p->policy != SCHED_LSHORT) {      /*ADDED*/
 		/*
 		 * RR tasks need a special form of timeslice management.
 		 * FIFO tasks have no timeslices.
@@ -806,14 +807,24 @@ void scheduler_tick(int user_tick, int system)
 	}
 
 	if (p->policy==SCHED_LSHORT) {                   /*ADDED from here*/
-		if (--p->time_slice){ 
-			--p->remaining_time;
+		if (!(--p->remaining_time) && p->array != rq->overdue_lshort){ 
+			dequeue_task(p,rq->lshort);
+			p->array = rq->overdue_lshort;
+			p->remaining_time = MAX_TIMESLICE / 2;
+			p->prio = 1;
+			set_tsk_need_resched(p);
+			enqueue_task(p,rq->overdue_lshort);
 			goto out;
-		}
-		else{
-			dequeue_task(p, rq->lshort);
-			enqueue_task(p, rq->overdue_lshort);
-		}
+		} else if(p->array = rq->overdue_lshort){
+			p->overdue_time++;
+			if(!p->remaining_time){
+				set_tsk_need_resched(p);
+				dequeue_task(p,p->array);
+				p->remaining_time = MAX_TIMESLICE / 2;
+				enqueue_task(p,p->array);
+			}
+			goto out;
+		} 
 	}                                                /* to here*/
 	else{
 		/*
@@ -917,15 +928,15 @@ pick_next_task:
 		/*
 		 * Switch the active and expired arrays.
 		 */
-		next = try_find_lshort(rq->overdue_lshort);
-		if(next == NULL){
+		next = try_find_lshort(rq->overdue_lshort);						/*ADDED*/
+		if(next == NULL){												/*ADDED*/
 			rq->active = rq->expired;
 			rq->expired = array;
 			array = rq->active;
 			rq->expired_timestamp = 0;
 		}
-		else
-			goto switch_tasks;
+		else 															/*ADDED*/
+			goto switch_tasks;											/*ADDED*/
 	}
 
 	idx = sched_find_first_bit(array->bitmap);
