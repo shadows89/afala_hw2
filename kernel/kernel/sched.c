@@ -27,6 +27,15 @@
 #include <linux/completion.h>
 #include <linux/kernel_stat.h>
 
+// ADDED log array for test
+ #define LOG_ARRAY_SIZE 150
+struct switch_info log_events[LOG_ARRAY_SIZE];
+int log_next_index = 0;
+int logs_remain = 0;
+int logs_number = 0;
+
+enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PREV_TASK_WAIT, SCHED_PARAM_CHANGE, RET_WAIT_HI_PRIO, TS_ENDED};
+
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
@@ -146,6 +155,32 @@ struct runqueue {
 	task_t *migration_thread;
 	list_t migration_queue;
 } ____cacheline_aligned;
+
+void log(int pid, int policy){
+	// No need to log. 30 event were already logged
+	if (logs_remain == 0){
+		// current->reason = NO_REASON; // TODO FOR WHYYYY?
+		return;
+	}
+	// TODO unknown reason
+	else if (current->pid == pid && current->reason != TASK_YIELD){
+		// current->reason = NO_REASON; // TODO WHYYYYY?
+		return;
+	}
+	// UPDATE LOG
+	log_events[log_next_index].previous_pid = current->pid;
+	log_events[log_next_index].next_pid = pid;
+	log_events[log_next_index].previous_policy = current->policy;
+	log_events[log_next_index].next_policy = policy;
+	log_events[log_next_index].time = jiffies;
+	log_events[log_next_index].reason = current->reason;
+	// UPDATE COUNTERS
+	log_next_index = (log_next_index + 1) % LOG_ARRAY_SIZE;
+	if (logs_number < LOG_ARRAY_SIZE){
+		logs_number++;
+	}
+	logs_remain--;
+}
 
 static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 
@@ -291,8 +326,8 @@ static inline void deactivate_task(struct task_struct *p, runqueue_t *rq)
 	if (p->state == TASK_UNINTERRUPTIBLE)
 		rq->nr_uninterruptible++;
 	dequeue_task(p, p->array);
-;
-	p->array = NULL}
+	p->array = NULL;
+}
 
 static inline void resched_task(task_t *p)
 {

@@ -28,6 +28,22 @@
 #include <linux/kernel_stat.h>
 #include <linux/slab.h>
 
+////////////////////////////////////
+int log_events_num=0;
+int last_event=0;
+int events_number=0;
+struct switch_info log_arr[150];//define global veribels to log sched events
+
+#define TASK_CREATED            1
+#define TASK_ENDED              2
+#define TASK_YIELD              3
+#define MQ_BECAME_OVERDUE       4
+#define TASK_ENTERED_SLEEP      5
+#define TASK_WOKEN		6
+#define FINISHED_TIMESLICE	7
+//////////////////////////////////
+/////////////////////////////////
+
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
@@ -62,6 +78,7 @@
 #define INTERACTIVE_DELTA	2
 #define MAX_SLEEP_AVG		(2*HZ)
 #define STARVATION_LIMIT	(2*HZ)
+
 
 /*
  * If a task is 'interactive' then we reinsert it in the active
@@ -119,21 +136,6 @@
  */
 
 #define BITMAP_SIZE ((((MAX_PRIO+1+7)/8)+sizeof(long)-1)/sizeof(long))
-////////////////////////////////////
-int log_events_num=0;
-int last_event=0;
-int events_number=0;
-struct switch_info log_arr[150];//define global veribels to log sched events
-
-#define TASK_CREATED            1
-#define TASK_ENDED              2
-#define TASK_YIELD              3
-#define MQ_BECAME_OVERDUE       4
-#define TASK_ENTERED_SLEEP      5
-#define TASK_WOKEN		6
-#define FINISHED_TIMESLICE	7
-//////////////////////////////////
-/////////////////////////////////
 
 typedef struct runqueue runqueue_t;
 
