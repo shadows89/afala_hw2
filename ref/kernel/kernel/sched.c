@@ -26,6 +26,23 @@
 #include <linux/interrupt.h>
 #include <linux/completion.h>
 #include <linux/kernel_stat.h>
+#include <linux/slab.h>
+
+////////////////////////////////////
+int log_events_num=0;
+int last_event=0;
+int events_number=0;
+struct switch_info log_arr[150];//define global veribels to log sched events
+
+#define TASK_CREATED            1
+#define TASK_ENDED              2
+#define TASK_YIELD              3
+#define MQ_BECAME_OVERDUE       4
+#define TASK_ENTERED_SLEEP      5
+#define TASK_WOKEN		6
+#define FINISHED_TIMESLICE	7
+//////////////////////////////////
+/////////////////////////////////
 
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
@@ -62,8 +79,6 @@
 #define MAX_SLEEP_AVG		(2*HZ)
 #define STARVATION_LIMIT	(2*HZ)
 
-#define MAX_REQUESTED_TIME  (30 * HZ) /* ADDED */
-#define LSHORT_BONUS(remaining_time,level)  (2*level*(.5 - remaining_time/MAX_REQUESTED_TIME))	/* ADDED */	
 
 /*
  * If a task is 'interactive' then we reinsert it in the active
@@ -112,6 +127,7 @@
  * priority process gets MIN_TIMESLICE worth of execution time.
  */
 
+/* TODO: remove this hack before release */
 #define TASK_TIMESLICE(p) (MIN_TIMESLICE + \
 	((MAX_TIMESLICE - MIN_TIMESLICE) * (MAX_PRIO-1-(p)->static_prio)/39))
 
@@ -136,17 +152,43 @@ struct prio_array {
  * (such as the load balancing or the process migration code), lock
  * acquire operations must be ordered by ascending &runqueue.
  */
+//////////////////
 struct runqueue {
 	spinlock_t lock;
 	unsigned long nr_running, nr_switches, expired_timestamp;
 	signed long nr_uninterruptible;
 	task_t *curr, *idle;
-	prio_array_t *active, *expired, *lshort, *overdue_lshort, arrays[4];   /* ADDED + CHANGED */
+	prio_array_t *mq, *active, *expired, *overdue, arrays[4];//we add mq and overdue prio arrays
 	int prev_nr_running[NR_CPUS];
 	task_t *migration_thread;
 	list_t migration_queue;
 } ____cacheline_aligned;
-
+void sched_start_logging(){
+	log_events_num=30;//we log only only last 30 switching events
+}
+void log_schedule(int pid, int policy){
+	if (log_events_num==0){
+		current->reason=0;
+		return;
+	}
+	else if (current->pid==pid&&current->reason!=3){
+		current->reason=0;
+		return;
+	}
+	log_events_num--;
+	if (events_number<150){
+		events_number++;
+	}
+	log_arr[last_event].next_policy=policy;
+	log_arr[last_event].reason=current->reason;
+	log_arr[last_event].time=jiffies;
+	log_arr[last_event].previous_pid=current->pid;
+	log_arr[last_event].next_pid=pid;
+	log_arr[last_event].previous_policy=current->policy;
+	last_event=(last_event+1)%150;
+}
+//////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////
 static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 
 #define cpu_rq(cpu)		(runqueues + (cpu))
@@ -213,7 +255,7 @@ static inline void rq_unlock(runqueue_t *rq)
 /*
  * Adding/removing a task to/from a priority array:
  */
-static inline void dequeue_task(struct task_struct *p, prio_array_t *array)    /* PROBLEM ????? */
+static inline void dequeue_task(struct task_struct *p, prio_array_t *array)
 {
 	array->nr_active--;
 	list_del(&p->run_list);
@@ -254,21 +296,55 @@ static inline int effective_prio(task_t *p)
 		prio = MAX_PRIO-1;
 	return prio;
 }
-
+//////////////////////////////
+int is_prefered(task_t *a, task_t *b){
+	if (rt_task(a)==1) {
+		if (rt_task(b)==1){
+			return a->prio<b->prio;
+		}
+		return 1;
+	}
+	if (a->mq_trials>0&&a->policy==SCHED_MQ) {
+		if (rt_task(b)==1){
+			return 0;
+		}
+		if (b->mq_trials>0&&b->policy==SCHED_MQ){
+			return a->prio<b->prio;
+		}
+		return 1;
+	}
+	if (a->policy==SCHED_OTHER) {
+		if (rt_task(b)==1){
+			return 0;
+		}
+		if (b->mq_trials>0&&b->policy==SCHED_MQ){
+			return 0;
+		}
+		if (b->policy == SCHED_OTHER){
+			return a->prio<b->prio;
+		}
+		return 1;
+	}
+	if (a->mq_trials==0&&a->policy==SCHED_MQ){
+		return 0;
+	}
+	return 0;//we should not arrive here
+}//here we set the sched hirarchy rt>mq>other>overdue>idle
 static inline void activate_task(task_t *p, runqueue_t *rq)
 {
 	unsigned long sleep_time = jiffies - p->sleep_timestamp;
-	prio_array_t *array;                                               /* ADDED + CHANGED from here */
-	if(p->policy == SCHED_LSHORT){
-		if(p->remaining_time == 0)
-			array = rq->overdue_lshort;
-		else
-			array = rq->lshort;
+	prio_array_t *array;
+	if (p->mq_trials==0&&p->policy==SCHED_MQ){
+		array = rq->overdue;
 	}
-	else
-		array = rq->active;												/* to here */
-
-	if (p->policy != SCHED_LSHORT && !rt_task(p) && sleep_time) {   /* ADDED */
+	else if (p->mq_trials>0&&p->policy == SCHED_MQ){
+		array = rq->mq;
+	}
+	else{
+		array = rq->active;
+	}
+	//we put mq process in mq prio array
+	if (p->policy!=SCHED_MQ&&rt_task(p)==0&&sleep_time) {
 		/*
 		 * This code gives a bonus to interactive tasks. We update
 		 * an 'average sleep time' value here, based on
@@ -284,14 +360,14 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 	enqueue_task(p, array);
 	rq->nr_running++;
 }
-
+/////////////////////////////////////////////
+/////////////////////////////////////////////
 static inline void deactivate_task(struct task_struct *p, runqueue_t *rq)
 {
 	rq->nr_running--;
 	if (p->state == TASK_UNINTERRUPTIBLE)
 		rq->nr_uninterruptible++;
 	dequeue_task(p, p->array);
-
 	p->array = NULL;
 }
 
@@ -359,6 +435,8 @@ void kick_if_running(task_t * p)
  * "current->state = TASK_RUNNING" to mark yourself runnable
  * without the overhead of this.
  */
+
+////////////////////////////
 static int try_to_wake_up(task_t * p, int sync)
 {
 	unsigned long flags;
@@ -385,11 +463,11 @@ repeat_lock_task:
 		if (old_state == TASK_UNINTERRUPTIBLE)
 			rq->nr_uninterruptible--;
 		activate_task(p, rq);
-		/*
-		 * If sync is set, a resched_task() is a NOOP
-		 */
-		if (p->prio < rq->curr->prio)
+
+		if (is_prefered(p, rq->curr)==1) {
+			rq->curr->reason=TASK_WOKEN;	
 			resched_task(rq->curr);
+		}
 		success = 1;
 	}
 	p->state = TASK_RUNNING;
@@ -397,33 +475,49 @@ repeat_lock_task:
 
 	return success;
 }
-
+void wake_up_father(task_t * p){
+	runqueue_t *rq = this_rq_lock();
+	dequeue_task(current, rq->mq);
+	enqueue_task(current, rq->mq);
+}//when mq forks the father gives up the cpu
+///////////////////////////////////
+///////////////////////////////////
 int wake_up_process(task_t * p)
 {
 	return try_to_wake_up(p, 0);
 }
-
+/////////////////////////////////////
 void wake_up_forked_process(task_t * p)
 {
 	runqueue_t *rq = this_rq_lock();
 
 	p->state = TASK_RUNNING;
-	if (!rt_task(p)) {
+	if (rt_task(p)==0&&p->policy!=SCHED_MQ) {
 		/*
 		 * We decrease the sleep average of forking parents
 		 * and children as well, to keep max-interactive tasks
 		 * from forking tasks that are max-interactive.
 		 */
-		current->sleep_avg = current->sleep_avg * PARENT_PENALTY / 100;
+
+		if (current->policy!=SCHED_MQ){
+			current->sleep_avg = current->sleep_avg * PARENT_PENALTY / 100;
+		}
 		p->sleep_avg = p->sleep_avg * CHILD_PENALTY / 100;
 		p->prio = effective_prio(p);
 	}
+
 	p->cpu = smp_processor_id();
 	activate_task(p, rq);
 
+	if (current->mq_trials>0&&current->policy==SCHED_MQ) {
+		dequeue_task(current, rq->mq);
+		enqueue_task(current, rq->mq);
+	}
+
 	rq_unlock(rq);
 }
-
+///////////////////////////////////////
+///////////////////////////////////////
 /*
  * Potentially available exiting-child timeslices are
  * retrieved here - this way the parent does not get
@@ -433,9 +527,16 @@ void wake_up_forked_process(task_t * p)
  * artificially, because any timeslice recovered here
  * was given away by the parent in the first place.)
  */
+///////////////
 void sched_exit(task_t * p)
 {
 	__cli();
+
+	if (p->policy==SCHED_MQ) {
+		__sti();
+		return;
+	}
+
 	if (p->first_time_slice) {
 		current->time_slice += p->time_slice;
 		if (unlikely(current->time_slice > MAX_TIMESLICE))
@@ -450,6 +551,8 @@ void sched_exit(task_t * p)
 		current->sleep_avg = (current->sleep_avg * EXIT_WEIGHT +
 			p->sleep_avg) / (EXIT_WEIGHT + 1);
 }
+///////////////////////
+//////////////////////
 
 #if CONFIG_SMP
 asmlinkage void schedule_tail(task_t *prev)
@@ -730,6 +833,7 @@ static inline void idle_tick(void)
  * This function gets called by the timer code, with HZ frequency.
  * We call it with interrupts disabled.
  */
+//////////////////////////////////////////////
 void scheduler_tick(int user_tick, int system)
 {
 	int cpu = smp_processor_id();
@@ -751,8 +855,9 @@ void scheduler_tick(int user_tick, int system)
 	kstat.per_cpu_system[cpu] += system;
 
 	/* Task might have expired already, but not scheduled off yet */
-	if (p->policy!=SCHED_LSHORT && p->array != rq->active) {            /*ADDED*/
+	if (p->policy!=SCHED_MQ&&p->array!=rq->active) {
 		set_tsk_need_resched(p);
+		p->reason=FINISHED_TIMESLICE;
 		return;
 	}
 	spin_lock(&rq->lock);
@@ -765,49 +870,71 @@ void scheduler_tick(int user_tick, int system)
 			p->time_slice = TASK_TIMESLICE(p);
 			p->first_time_slice = 0;
 			set_tsk_need_resched(p);
-
+			p->reason=FINISHED_TIMESLICE;
 			/* put it at the end of the queue: */
 			dequeue_task(p, rq->active);
 			enqueue_task(p, rq->active);
 		}
 		goto out;
 	}
-
-	if (p->policy==SCHED_LSHORT) {                   /*ADDED from here*/
-		if (--p->time_slice){ 
-			--p->remaining_time;
+	if (p->policy==SCHED_MQ) {
+		if (--p->time_slice){
 			goto out;
 		}
-		else{
-			dequeue_task(p, rq->lshort);
-			enqueue_task(p, rq->overdue_lshort);
+		p->time_slice=TASK_TIMESLICE(p);
+		if (p->mq_trials>0){
+			p->mq_trials--;
+			if (p->mq_trials==0){
+				set_tsk_need_resched(p);
+				dequeue_task(p, rq->mq);
+				p->static_prio=NICE_TO_PRIO(0);
+				p->prio=p->static_prio ;
+				enqueue_task(p, rq->overdue);
+				if (p->reason>MQ_BECAME_OVERDUE||p->reason==0){
+					p->reason=MQ_BECAME_OVERDUE;
+				}
+				goto out;
+			}
 		}
-	}                                                /* to here*/
-	else{
-		/*
-	 	* The task was running during this tick - update the
-	 	* time slice counter and the sleep average. Note: we
-	 	* do not update a process's priority until it either
-	 	* goes to sleep or uses up its timeslice. This makes
-	 	* it possible for interactive tasks to use up their
-	 	* timeslices at their highest priority levels.
-	 	*/
-		if (p->sleep_avg)
-			p->sleep_avg--;
-		if (!--p->time_slice) {
-			dequeue_task(p, rq->active);
+		if (p->mq_trials>0) {
+			int trial_index=(p->mq_first_trial_num)-p->mq_trials+1;
+			int bonus_mq=TASK_TIMESLICE(p)/trial_index;
+			p->time_slice=TASK_TIMESLICE(p)+bonus_mq;
 			set_tsk_need_resched(p);
-			p->prio = effective_prio(p);
-			p->first_time_slice = 0;
-			p->time_slice = TASK_TIMESLICE(p);
-
-			if (!TASK_INTERACTIVE(p) || EXPIRED_STARVING(rq)) {
-				if (!rq->expired_timestamp)
-					rq->expired_timestamp = jiffies;
-				enqueue_task(p, rq->expired);
-			} else
-				enqueue_task(p, rq->active);
+			dequeue_task(p,rq->mq);
+			enqueue_task(p,rq->mq);
+			if (p->reason>FINISHED_TIMESLICE||p->reason==0){
+				p->reason=FINISHED_TIMESLICE;
+			}
 		}
+		goto out;
+	}
+
+	/*
+	 * The task was running during this tick - update the
+	 * time slice counter and the sleep average. Note: we
+	 * do not update a process's priority until it either
+	 * goes to sleep or uses up its timeslice. This makes
+	 * it possible for interactive tasks to use up their
+	 * timeslices at their highest priority levels.
+	 */
+	if (p->sleep_avg)
+		p->sleep_avg--;
+	if (!--p->time_slice) {
+		dequeue_task(p, rq->active);
+		set_tsk_need_resched(p);
+		if (p->reason>FINISHED_TIMESLICE||p->reason==0){
+			p->reason=FINISHED_TIMESLICE;
+		}
+		p->prio = effective_prio(p);
+		p->first_time_slice = 0;
+		p->time_slice = TASK_TIMESLICE(p);
+		if (!TASK_INTERACTIVE(p) || EXPIRED_STARVING(rq)) {
+			if (!rq->expired_timestamp)
+				rq->expired_timestamp = jiffies;
+			enqueue_task(p, rq->expired);
+		} else
+			enqueue_task(p, rq->active);
 	}
 out:
 #if CONFIG_SMP
@@ -815,19 +942,6 @@ out:
 		load_balance(rq, 0);
 #endif
 	spin_unlock(&rq->lock);
-}
-  
-/* ADDED FUNCTION */
-task_t* try_find_lshort(prio_array_t array){
-	int idx;
-	list_t *queue;
-
-	if(array->nr_running){
-		idx = sched_find_first_bit(array->bitmap);
-		queue = array->queue + idx;
-		return list_entry(queue->next, task_t, run_list);
-	}
-	return NULL;
 }
 
 void scheduling_functions_start_here(void) { }
@@ -837,7 +951,7 @@ void scheduling_functions_start_here(void) { }
  */
 asmlinkage void schedule(void)
 {
-	task_t *prev, *next, *possible;   /* ADDED */
+	task_t *prev, *next;
 	runqueue_t *rq;
 	prio_array_t *array;
 	list_t *queue;
@@ -854,14 +968,22 @@ need_resched:
 	prepare_arch_schedule(prev);
 	prev->sleep_timestamp = jiffies;
 	spin_lock_irq(&rq->lock);
-
+	if (prev->state==TASK_ZOMBIE) {
+		sched_start_logging();
+		if (prev->reason>TASK_ENDED ||prev->reason==0){
+			prev->reason=TASK_ENDED ;
+		}
+	}
 	switch (prev->state) {
 	case TASK_INTERRUPTIBLE:
 		if (unlikely(signal_pending(prev))) {
 			prev->state = TASK_RUNNING;
 			break;
 		}
-	default:
+	default:	
+		if (prev->reason>TASK_ENTERED_SLEEP||prev->reason==0){
+			prev->reason=TASK_ENTERED_SLEEP ;
+		}
 		deactivate_task(prev, rq);
 	case TASK_RUNNING:
 		;
@@ -879,35 +1001,39 @@ pick_next_task:
 		rq->expired_timestamp = 0;
 		goto switch_tasks;
 	}
-
-	array = rq->active;
-	if (unlikely(!array->nr_active)) {
-		/*
-		 * Switch the active and expired arrays.
-		 */
-		next = try_find_lshort(rq->overdue_lshort);
-		if(next == NULL){
+	/* 1. realtime tasks these tasks are always in 'active' queue
+		because normal tasks never run till all RT tasks disappear
+		from runqueue - aka exit or sleep*/
+	array = rq->active;//we try first run rt, and than mq,normal, and overdue last
+	if (array->nr_active && sched_find_first_bit(array->bitmap) < MAX_RT_PRIO)
+		goto get_task;
+	array = rq->mq;
+	if (array->nr_active)
+		goto get_task;
+	if (rq->active->nr_active || rq->expired->nr_active) {
+		array = rq->active;
+		if (unlikely(!array->nr_active)) {
+			/*
+			* Switch the active and expired arrays.
+			*/
 			rq->active = rq->expired;
 			rq->expired = array;
 			array = rq->active;
 			rq->expired_timestamp = 0;
 		}
-		else
-			goto switch_tasks;
+		goto get_task;
 	}
-
+	array = rq->overdue;
+get_task:
 	idx = sched_find_first_bit(array->bitmap);
 	queue = array->queue + idx;
 	next = list_entry(queue->next, task_t, run_list);
-	if(next->policy == SCHED_OTHER){                             /* ADDED from here */
-		possible = try_find_lshort(rq->lshort);
-		if(possible != NULL)
-			next = possible;
-	}															/* to here */	
 
 switch_tasks:
 	prefetch(next);
 	clear_tsk_need_resched(prev);
+
+	log_schedule(next->pid, next->policy);
 
 	if (likely(prev != next)) {
 		rq->nr_switches++;
@@ -926,7 +1052,8 @@ switch_tasks:
 	if (need_resched())
 		goto need_resched;
 }
-
+/////////////////////////////////////////////////
+/////////////////////////////////////////////////
 /*
  * The core wakeup function.  Non-exclusive wakeups (nr_exclusive == 0) just
  * wake everything up.  If it's an exclusive wakeup (nr_exclusive == small +ve
@@ -1078,7 +1205,7 @@ long sleep_on_timeout(wait_queue_head_t *q, long timeout)
 }
 
 void scheduling_functions_end_here(void) { }
-
+////////////////////////////////////////////
 void set_user_nice(task_t *p, long nice)
 {
 	unsigned long flags;
@@ -1096,6 +1223,11 @@ void set_user_nice(task_t *p, long nice)
 		p->static_prio = NICE_TO_PRIO(nice);
 		goto out_unlock;
 	}
+	if (p->mq_trials==0&&p->policy==SCHED_MQ) {
+		p->static_prio=NICE_TO_PRIO(0);
+		p->prio=NICE_TO_PRIO(0);
+		goto out_unlock;
+	}
 	array = p->array;
 	if (array)
 		dequeue_task(p, array);
@@ -1107,13 +1239,18 @@ void set_user_nice(task_t *p, long nice)
 		 * If the task is running and lowered its priority,
 		 * or increased its priority then reschedule its CPU:
 		 */
-		if ((NICE_TO_PRIO(nice) < p->static_prio) || (p == rq->curr))
+		if ((NICE_TO_PRIO(nice) < p->static_prio) || (p == rq->curr)) {
+			if (rq->curr->reason>TASK_WOKEN||rq->curr->reason==0){
+				rq->curr->reason=TASK_WOKEN;
+			}
 			resched_task(rq->curr);
+		}
 	}
 out_unlock:
 	task_rq_unlock(rq, &flags);
 }
-
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
 #ifndef __alpha__
 
 /*
@@ -1151,6 +1288,31 @@ asmlinkage long sys_nice(int increment)
 
 #endif
 
+/////////////////////////////////////////////////////////////
+int sys_get_scheduling_statistic(struct switch_info* info){
+	int first_event=last_event;
+	struct switch_info buffer[150];
+	int lengh=events_number*sizeof(struct switch_info);
+	if (events_number==0){
+		goto exit;
+	}
+	else if (events_number<150){
+		memcpy(buffer, log_arr, lengh);
+		goto exit;
+	}
+	else {
+		memcpy(buffer,log_arr+first_event,(events_number-first_event)*sizeof(struct switch_info));
+		memcpy(events_number+buffer-first_event,log_arr,sizeof(struct switch_info)*first_event);
+		goto exit;
+	}
+exit:
+	if (copy_to_user(info,buffer,lengh)!=0) {
+		return -EINVAL;
+	}
+	return events_number;
+}
+////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////
 /*
  * This is the priority value as seen by users in /proc
  *
@@ -1176,7 +1338,7 @@ static inline task_t *find_process_by_pid(pid_t pid)
 {
 	return pid ? find_task_by_pid(pid) : current;
 }
-
+/////////////////////////////////////////////////////////////////////////
 static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 {
 	struct sched_param lp;
@@ -1213,31 +1375,23 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if (policy < 0)
 		policy = p->policy;
 	else {
+		/* Allow of course SCHED_MQ here */
 		retval = -EINVAL;
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
-				policy != SCHED_OTHER && policy != SCHED_LSHORT)  /*ADDED*/
+				policy != SCHED_OTHER && policy != SCHED_MQ)
 			goto out_unlock;
 	}
 
 	/*
 	 * Valid priorities for SCHED_FIFO and SCHED_RR are
-	 * 1..MAX_USER_RT_PRIO-1, valid priority for SCHED_OTHER is 0.
+	 * 1..MAX_USER_RT_PRIO-1, valid priority for SCHED_OTHER/MQ is 0.
 	 */
-
 	retval = -EINVAL;
 	if (lp.sched_priority < 0 || lp.sched_priority > MAX_USER_RT_PRIO-1)
 		goto out_unlock;
-	if ((policy == SCHED_OTHER) != (lp.sched_priority == 0))
+	if ((policy==SCHED_OTHER||policy==SCHED_MQ)!=(lp.sched_priority==0)){
 		goto out_unlock;
-	if (policy == SCHED_LSHORT){         /* ADDED from here */
-		if(p->policy != SCHED_OTHER)			
-			goto out_unlock;
-		if(lp.lshort_params.requested_time > MAX_REQUESTED_TIME || lp.lshort_params.requested_time <= 0)
-			goto out_unlock;
-		if(lp.lshort_params.level < 1 || lp.lshort_params.level > 50)
-			goto out_unlock;
-	}                                      /* to here */
-
+	}
 	retval = -EPERM;
 	if ((policy == SCHED_FIFO || policy == SCHED_RR) &&
 	    !capable(CAP_SYS_NICE))
@@ -1245,28 +1399,40 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if ((current->euid != p->euid) && (current->euid != p->uid) &&
 	    !capable(CAP_SYS_NICE))
 		goto out_unlock;
-
-
+	if (p->policy==SCHED_MQ)
+		goto out_unlock;
+	if (policy==SCHED_MQ) {
+		if (p->policy!=SCHED_OTHER){
+			goto out_unlock;
+		}
+		retval = -EINVAL;
+		if (lp.trial_num<1||lp.trial_num>100){
+			goto out_unlock;
+		}
+		p->mq_first_trial_num = lp.trial_num;
+		p->mq_trials = lp.trial_num;
+		p->time_slice = TASK_TIMESLICE(p);
+	}
 	array = p->array;
 	if (array)
 		deactivate_task(p, task_rq(p));
 	retval = 0;
 	p->policy = policy;
 	p->rt_priority = lp.sched_priority;
-	if (policy != SCHED_OTHER && policy != SCHED_LSHORT)            /*  ADDED +CHANGED from here  */
+	if (policy!=SCHED_OTHER&&policy!=SCHED_MQ){
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
-	else if(policy == SCHED_LSHORT){  
-			p->remaining_time = lp.lshort_params.requested_time;                             
-			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp->lshort_params.level);
-			p->prio -= (30 + 20);  /* SHIFT + NICE */
-			p->remaining_time = lp.lshort_params.requested_time;
-			p->requested_time = lp.lshort_params.requested_time;
+	}
+	else{
+		p->prio = p->static_prio;
+	}
+	if (is_prefered(p, rq->curr)==1) {
+		if (rq->curr->reason>TASK_WOKEN||rq->curr->reason==0){
+			rq->curr->reason=TASK_WOKEN;
 		}
-		else
-			p->prio = p->static_prio;                               /* to here */
+		resched_task(rq->curr);
+	}
 	if (array)
 		activate_task(p, task_rq(p));
-
 out_unlock:
 	task_rq_unlock(rq, &flags);
 out_unlock_tasklist:
@@ -1275,7 +1441,8 @@ out_unlock_tasklist:
 out_nounlock:
 	return retval;
 }
-
+//////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
 asmlinkage long sys_sched_setscheduler(pid_t pid, int policy,
 				      struct sched_param *param)
 {
@@ -1305,7 +1472,7 @@ asmlinkage long sys_sched_getscheduler(pid_t pid)
 out_nounlock:
 	return retval;
 }
-
+//////////////////////////////////////////////////////////////////////////
 asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 {
 	struct sched_param lp;
@@ -1320,9 +1487,8 @@ asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 	retval = -ESRCH;
 	if (!p)
 		goto out_unlock;
-	lp.sched_priority = p->rt_priority;
-	lp.lshort_params.requested_time = p->requested_time; /*ADDED*/
-	lp.lshort_params.level = p->level;                   /*ADDED*/
+	lp.trial_num=p->mq_trials;
+	lp.sched_priority=p->rt_priority;
 	read_unlock(&tasklist_lock);
 
 	/*
@@ -1337,7 +1503,8 @@ out_unlock:
 	read_unlock(&tasklist_lock);
 	return retval;
 }
-
+/////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////
 /**
  * sys_sched_setaffinity - set the cpu affinity of a process
  * @pid: pid of the process
@@ -1435,7 +1602,7 @@ out_unlock:
 		return -EFAULT;
 	return real_len;
 }
-
+//////////////////////////////////////////////////
 asmlinkage long sys_sched_yield(void)
 {
 	runqueue_t *rq = this_rq_lock();
@@ -1447,7 +1614,10 @@ asmlinkage long sys_sched_yield(void)
 		list_add_tail(&current->run_list, array->queue + current->prio);
 		goto out_unlock;
 	}
-
+	if (current->policy==SCHED_MQ) {
+		spin_unlock(&rq->lock);
+		return -1;
+	}
 	list_del(&current->run_list);
 	if (!list_empty(array->queue + current->prio)) {
 		list_add(&current->run_list, array->queue[current->prio].next);
@@ -1466,14 +1636,15 @@ asmlinkage long sys_sched_yield(void)
 	__set_bit(i, array->bitmap);
 
 out_unlock:
+	if (current->reason>TASK_YIELD||current->reason==0){
+		current->reason=TASK_YIELD;
+	}
 	spin_unlock(&rq->lock);
-
 	schedule();
-
 	return 0;
 }
-
-
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 asmlinkage long sys_sched_get_priority_max(int policy)
 {
 	int ret = -EINVAL;
@@ -1678,7 +1849,7 @@ extern void init_timervecs(void);
 extern void timer_bh(void);
 extern void tqueue_bh(void);
 extern void immediate_bh(void);
-
+//////////////////////////////////////////
 void __init sched_init(void)
 {
 	runqueue_t *rq;
@@ -1689,13 +1860,13 @@ void __init sched_init(void)
 
 		rq = cpu_rq(i);
 		rq->active = rq->arrays;
-		rq->expired = rq->arrays + 1; 
- 		rq->lshort = rq->arrays + 2; 					/*ADDED*/
-		rq->overdue_lshort = rq->arrays + 3;			/*ADDED*/
+		rq->expired = rq->arrays + 1;
+		rq->mq = rq->arrays + 2;
+		rq->overdue = rq->arrays + 3;
 		spin_lock_init(&rq->lock);
 		INIT_LIST_HEAD(&rq->migration_queue);
 
-		for (j = 0; j < 4; j++) {						/*CHANGED*/
+		for (j = 0; j < 4; j++) {
 			array = rq->arrays + j;
 			for (k = 0; k < MAX_PRIO; k++) {
 				INIT_LIST_HEAD(array->queue + k);
@@ -1725,7 +1896,29 @@ void __init sched_init(void)
 	atomic_inc(&init_mm.mm_count);
 	enter_lazy_tlb(&init_mm, current, smp_processor_id());
 }
-
+int asmlinkage sys_is_MQ(int pid){
+	read_lock(&tasklist_lock);
+	struct task_struct* tsk;
+	unsigned long flags;
+	runqueue_t* rq;
+	tsk = find_task_by_pid(pid);
+	if (tsk==0) {
+		read_unlock(&tasklist_lock);
+		return -EINVAL;
+	}
+	rq=task_rq_lock(tsk, &flags);
+	task_rq_unlock(rq, &flags);
+	read_unlock(&tasklist_lock);
+	if (tsk->policy!=SCHED_MQ){
+		return -EINVAL;
+	}
+	if(tsk->mq_trials>0){
+		return 1;
+	}
+	return 0;
+}
+/////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
 #if CONFIG_SMP
 
 /*
@@ -1978,4 +2171,3 @@ struct low_latency_enable_struct __enable_lowlatency = { 0, };
 #endif
 
 #endif	/* LOWLATENCY_NEEDED */
-
