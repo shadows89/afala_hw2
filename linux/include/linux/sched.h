@@ -30,6 +30,15 @@ extern unsigned long event;
 
 struct exec_domain;
 
+struct switch_info {			/* ADDED */ 
+	int previous_pid;
+	int next_pid;
+	int previous_policy;
+	int next_policy;
+	unsigned long time;
+	int reason;
+};
+
 /*
  * cloning flags:
  */

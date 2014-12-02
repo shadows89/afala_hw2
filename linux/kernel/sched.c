@@ -181,31 +181,6 @@ void log(int pid, int policy){												/* ADDED from here */
 	}
 	logs_remain--;
 }
-
-int prefer(task_t * curr, task_t * poss){
-	runqueue_t *rq = this_rq();
-
-	if ((rt_task(curr) && (rt_task(poss)) 								// Both RT or Both LSHORT or Both Other
-		|| (curr->policy == SCHED_LSHORT && poss->policy == SCHED_LSHORT) 
-		|| (curr->policy == SCHED_OTHER && poss->policy == SCHED_OTHER)){
-		return (curr->prio - poss->prio < 0);
-	} else if (curr->array == poss->array && curr->array == rq->overdue_lshort ) { 	// Both Overdue
-		return 1;
-	} else if (rt_task(curr) == 1) { 												// curr is RT and poss is not
-		return 1;
-	} else if (rt_task(poss) == 1) { 												// curr is not RT and poss is RT
-		return 0;
-	} else if (curr->policy == SCHED_LSHORT) {										// curr is LSHORT and poss is Other or Overdue
-		return 1;
-	} else if (poss->policy == SCHED_LSHORT) {										// curr is Other or Overdue and poss is LSHORT
-		return 0;
-	} else if (curr->policy == SCHED_OTHER) {										// curr is Other and poss is Overdue
-		return 1;
-	} else if (poss->policy == SCHED_OTHER) {										// curr is Overdue and poss is Other
-		return 0;
-	}
-	return -1; 																		// not valid. We'll not gonna get here
-}
 																		/* to here */
 static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 
@@ -224,6 +199,31 @@ static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 # define prepare_arch_switch(rq)	do { } while(0)
 # define finish_arch_switch(rq)		spin_unlock_irq(&(rq)->lock)
 #endif
+
+int prefer(task_t * curr, task_t * poss){
+	runqueue_t *rq = this_rq();
+
+	if ((rt_task(curr) && rt_task(poss))
+		|| (curr->policy == SCHED_LSHORT && poss->policy == SCHED_LSHORT) 
+		|| (curr->policy == SCHED_OTHER && poss->policy == SCHED_OTHER)){			// Both RT or Both LSHORT or Both Other
+		return (curr->prio - poss->prio < 0);
+	} else if (curr->array == poss->array && curr->array == rq->overdue_lshort ) { 	// Both Overdue
+		return 1;
+	} else if (rt_task(curr) == 1) { 												// curr is RT and poss is not
+		return 1;
+	} else if (rt_task(poss) == 1) { 												// curr is not RT and poss is RT
+		return 0;
+	} else if (curr->policy == SCHED_LSHORT) {										// curr is LSHORT and poss is Other or Overdue
+		return 1;
+	} else if (poss->policy == SCHED_LSHORT) {										// curr is Other or Overdue and poss is LSHORT
+		return 0;
+	} else if (curr->policy == SCHED_OTHER) {										// curr is Other and poss is Overdue
+		return 1;
+	} else if (poss->policy == SCHED_OTHER) {										// curr is Overdue and poss is Other
+		return 0;
+	}
+	return -1; 																		// not valid. We'll not gonna get here
+}
 
 /*
  * task_rq_lock - lock the runqueue a given task resides on and disable
@@ -531,7 +531,7 @@ asmlinkage void schedule_tail(task_t *prev)
 }
 #endif
 
-static inline task_t * (task_t *prev, task_t *next)
+static inline task_t * context_switch(task_t *prev, task_t *next)		// TODO ??? Added name of the function "context_switch"
 {
 	struct mm_struct *mm = next->mm;
 	struct mm_struct *oldmm = prev->active_mm;
@@ -1183,7 +1183,7 @@ void set_user_nice(task_t *p, long nice)
 	 * the task might be in the middle of scheduling on another CPU.
 	 */
 	rq = task_rq_lock(p, &flags);
-	if(p->policy == SCHED_LSHORT && p->array = rq->overdue_lshort)   /*ADDED*/
+	if(p->policy == SCHED_LSHORT && p->array == rq->overdue_lshort)   /*ADDED*/
 		goto out_unlock;											 /*ADDED*/
 	if (rt_task(p)) {
 		p->static_prio = NICE_TO_PRIO(nice);
