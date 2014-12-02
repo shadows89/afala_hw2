@@ -630,7 +630,6 @@ repeat:
 					write_unlock_irq(&tasklist_lock);
 				} else
 					release_task(p);
-				tsk->numberOfSons--;
 				goto end_wait4;
 			default:
 				continue;

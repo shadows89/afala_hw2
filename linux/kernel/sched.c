@@ -531,7 +531,7 @@ asmlinkage void schedule_tail(task_t *prev)
 }
 #endif
 
-static inline task_t * context_switch(task_t *prev, task_t *next)		// TODO ??? Added name of the function "context_switch"
+static inline task_t * context_switch(task_t *prev, task_t *next)
 {
 	struct mm_struct *mm = next->mm;
 	struct mm_struct *oldmm = prev->active_mm;
@@ -827,10 +827,8 @@ void scheduler_tick(int user_tick, int system)
 		set_tsk_need_resched(p);
 		p->reason = TS_ENDED;
 		return;
-	}
-
-
-	else if (unlikely(rt_task(p)) && (p->policy != SCHED_LSHORT) {      /*ADDED*/
+	}	
+	else if (unlikely(rt_task(p)) && (p->policy != SCHED_LSHORT)) {      /*ADDED*/
 		/*
 		 * RR tasks need a special form of timeslice management.
 		 * FIFO tasks have no timeslices.
@@ -856,9 +854,9 @@ void scheduler_tick(int user_tick, int system)
 			set_tsk_need_resched(p);
 			enqueue_task(p,rq->overdue_lshort);
 			goto out;
-		} else if(p->array = rq->overdue_lshort){
+		} else if(p->array == rq->overdue_lshort){
 			p->overdue_time++;
-			if(!p->remaining_time){
+			if(!(p->remaining_time)){
 				set_tsk_need_resched(p);
 				dequeue_task(p,p->array);
 				p->remaining_time = MAX_TIMESLICE / 2;
@@ -902,11 +900,11 @@ out:
 }
   
 /* ADDED FUNCTION */
-task_t* try_find_lshort(prio_array_t array){
+task_t* try_find_lshort(prio_array_t* array){
 	int idx;
 	list_t *queue;
 
-	if(array->nr_running){
+	if(array->nr_active){
 		idx = sched_find_first_bit(array->bitmap);
 		queue = array->queue + idx;
 		return list_entry(queue->next, task_t, run_list);
@@ -1201,7 +1199,7 @@ void set_user_nice(task_t *p, long nice)
 		 * or increased its priority then reschedule its CPU:
 		 */
 		if ((NICE_TO_PRIO(nice) < p->static_prio) || (p == rq->curr)) {
-			if (rq->curr->reason = TS_ENDED || rq->curr->reason == NO_REASON)
+			if (rq->curr->reason == TS_ENDED || rq->curr->reason == NO_REASON)
 				rq->curr->reason = RET_FROM_WAIT;
 			resched_task(rq->curr);
 		}
@@ -1353,7 +1351,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else if(policy == SCHED_LSHORT){  
 			p->remaining_time = lp.lshort_params.requested_time;
-			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp->lshort_params.level);
+			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp.lshort_params.level);
 			p->prio -= (30 + 20);  /* SHIFT + NICE */
 			p->remaining_time = lp.lshort_params.requested_time;
 			p->requested_time = lp.lshort_params.requested_time;
