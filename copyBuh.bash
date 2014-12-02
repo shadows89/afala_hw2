@@ -1,0 +1,1 @@
+cp -rv ./kernel/* /usr/src/linux-2.4.18-14custom/
