@@ -828,7 +828,9 @@ void scheduler_tick(int user_tick, int system)
 		p->reason = TS_ENDED;
 		return;
 	}	
-	else if (unlikely(rt_task(p)) && (p->policy != SCHED_LSHORT)) {      /*ADDED*/
+	
+	spin_lock(&rq->lock);
+	if (unlikely(rt_task(p)) && (p->policy != SCHED_LSHORT)) {      /*ADDED*/
 		/*
 		 * RR tasks need a special form of timeslice management.
 		 * FIFO tasks have no timeslices.
