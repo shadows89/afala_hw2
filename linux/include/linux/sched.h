@@ -465,6 +465,7 @@ struct task_struct {
 	int requested_time;
 	int overdue_time;
 	int level;
+	int reason;
 };
 
 /*
@@ -570,11 +571,12 @@ extern struct exec_domain	default_exec_domain;
     blocked:		{{0}},						\
     alloc_lock:		SPIN_LOCK_UNLOCKED,				\
     journal_info:	NULL,						\
-    remaining_time: -1,     \             /*ADDED from here*/
-	used_time:  -1,         \
-	overdue_time:   -1,     \
-	level:      -1,         \			/* to here */
-}
+    remaining_time: -1,						\
+	used_time:  -1,						\
+	overdue_time:   -1,						\
+	level:      -1,						\
+	reason:      0,						\
+}	/* ADDED last few lines */
 
 
 #ifndef INIT_TASK_SIZE
