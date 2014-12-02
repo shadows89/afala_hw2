@@ -462,9 +462,9 @@ struct task_struct {
 
 /* ADDED LSHORT params -- only accessed if proc is SCHED_LSHORT */
 	int remaining_time;
-	int used_time;
+	int requested_time;
+	int overdue_time;
 	int level;
-	int reason;
 };
 
 /*
@@ -570,8 +570,10 @@ extern struct exec_domain	default_exec_domain;
     blocked:		{{0}},						\
     alloc_lock:		SPIN_LOCK_UNLOCKED,				\
     journal_info:	NULL,						\
-    remaining_time: -1,     \
+    remaining_time: -1,     \             /*ADDED from here*/
 	used_time:  -1,         \
+	overdue_time:   -1,     \
+	level:      -1,         \			/* to here */
 }
 
 
