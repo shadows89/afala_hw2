@@ -27,14 +27,15 @@
 #include <linux/completion.h>
 #include <linux/kernel_stat.h>
 
-// ADDED log array for test
- #define LOG_ARRAY_SIZE 150
+#define LOG_ARRAY_SIZE 150								/* ADDED log array for test from here*/
+#define MAX_EVENTS_TO_LOG 30
 struct switch_info log_events[LOG_ARRAY_SIZE];
 int log_next_index = 0;
 int logs_remain = 0;
 int logs_number = 0;
 
-enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PREV_TASK_WAIT, SCHED_PARAM_CHANGE, RET_WAIT_HI_PRIO, TS_ENDED};
+enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PREV_TASK_WAIT, SCHED_PARAM_CHANGE, RET_FROM_WAIT, TS_ENDED};
+														/* to here */
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
@@ -70,7 +71,7 @@ enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PR
 #define MAX_SLEEP_AVG		(2*HZ)
 #define STARVATION_LIMIT	(2*HZ)
 
-#define MAX_REQUESTED_TIME  (30 * HZ) /* ADDED */
+#define MAX_REQUESTED_TIME  (30 * HZ) 															/* ADDED */
 #define LSHORT_BONUS(remaining_time,level)  (2*level*(.5 - remaining_time/MAX_REQUESTED_TIME))	/* ADDED */	
 
 /*
@@ -155,7 +156,7 @@ struct runqueue {
 	list_t migration_queue;
 } ____cacheline_aligned;
 
-void log(int pid, int policy){
+void log(int pid, int policy){												/* ADDED from here */
 	// No need to log. 30 event were already logged
 	if (logs_remain == 0){
 		// current->reason = NO_REASON; // TODO FOR WHYYYY?
@@ -180,6 +181,32 @@ void log(int pid, int policy){
 	}
 	logs_remain--;
 }
+
+int prefer(task_t * curr, task_t * poss){
+	runqueue_t *rq = this_rq();
+
+	if ((rt_task(curr) && (rt_task(poss)) 								// Both RT or Both LSHORT or Both Other
+		|| (curr->policy == SCHED_LSHORT && poss->policy == SCHED_LSHORT) 
+		|| (curr->policy == SCHED_OTHER && poss->policy == SCHED_OTHER)){
+		return (curr->prio - poss->prio < 0);
+	} else if (curr->array == poss->array && curr->array == rq->overdue_lshort ) { 	// Both Overdue
+		return 1;
+	} else if (rt_task(curr) == 1) { 												// curr is RT and poss is not
+		return 1;
+	} else if (rt_task(poss) == 1) { 												// curr is not RT and poss is RT
+		return 0;
+	} else if (curr->policy == SCHED_LSHORT) {										// curr is LSHORT and poss is Other or Overdue
+		return 1;
+	} else if (poss->policy == SCHED_LSHORT) {										// curr is Other or Overdue and poss is LSHORT
+		return 0;
+	} else if (curr->policy == SCHED_OTHER) {										// curr is Other and poss is Overdue
+		return 1;
+	} else if (poss->policy == SCHED_OTHER) {										// curr is Overdue and poss is Other
+		return 0;
+	}
+	return -1; 																		// not valid. We'll not gonna get here
+}
+																		/* to here */
 static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 
 #define cpu_rq(cpu)		(runqueues + (cpu))
@@ -417,11 +444,18 @@ repeat_lock_task:
 		if (old_state == TASK_UNINTERRUPTIBLE)
 			rq->nr_uninterruptible--;
 		activate_task(p, rq);
+
+		if (prefer(rq->curr, p) == 0) {									/*ADDED + CHANGED from here*/
+			rq->curr->reason = RET_FROM_WAIT;	
+			resched_task(rq->curr);	
+		}																/* to here */
+
 		/*
 		 * If sync is set, a resched_task() is a NOOP
 		 */
-		if (p->prio < rq->curr->prio)
-			resched_task(rq->curr);
+		// No need:
+		// if (p->prio < rq->curr->prio)
+		// 	resched_task(rq->curr);
 		success = 1;
 	}
 	p->state = TASK_RUNNING;
@@ -785,6 +819,7 @@ void scheduler_tick(int user_tick, int system)
 	/* Task might have expired already, but not scheduled off yet */
 	if (p->policy!=SCHED_LSHORT && p->array != rq->active) {            /*ADDED*/
 		set_tsk_need_resched(p);
+		p->reason = TS_ENDED;
 		return;
 	}
 
@@ -798,7 +833,7 @@ void scheduler_tick(int user_tick, int system)
 			p->time_slice = TASK_TIMESLICE(p);
 			p->first_time_slice = 0;
 			set_tsk_need_resched(p);
-
+			p->reason = TS_ENDED;
 			/* put it at the end of the queue: */
 			dequeue_task(p, rq->active);
 			enqueue_task(p, rq->active);
@@ -897,7 +932,11 @@ need_resched:
 	prepare_arch_schedule(prev);
 	prev->sleep_timestamp = jiffies;
 	spin_lock_irq(&rq->lock);
-
+	if (prev->state==TASK_ZOMBIE) {				 /* ADDED from here */
+		logs_remain = MAX_EVENTS_TO_LOG;
+		if (prev->reason == NO_REASON)
+			prev->reason = TASK_ENDED;
+	}											 /* to here */
 	switch (prev->state) {
 	case TASK_INTERRUPTIBLE:
 		if (unlikely(signal_pending(prev))) {
@@ -928,21 +967,21 @@ pick_next_task:
 		/*
 		 * Switch the active and expired arrays.
 		 */
-		next = try_find_lshort(rq->overdue_lshort);						/*ADDED*/
-		if(next == NULL){												/*ADDED*/
+		next = try_find_lshort(rq->overdue_lshort);			 	/* ADDED from here */
+		if(next == NULL){
 			rq->active = rq->expired;
 			rq->expired = array;
 			array = rq->active;
 			rq->expired_timestamp = 0;
-		}
-		else 															/*ADDED*/
-			goto switch_tasks;											/*ADDED*/
+		}	
+		else
+			goto switch_tasks;									/* to here */
 	}
 
 	idx = sched_find_first_bit(array->bitmap);
 	queue = array->queue + idx;
 	next = list_entry(queue->next, task_t, run_list);
-	if(next->policy == SCHED_OTHER){                             /* ADDED from here */
+	if(next->policy == SCHED_OTHER){                            /* ADDED from here */
 		possible = try_find_lshort(rq->lshort);
 		if(possible != NULL)
 			next = possible;
@@ -951,6 +990,8 @@ pick_next_task:
 switch_tasks:
 	prefetch(next);
 	clear_tsk_need_resched(prev);
+
+	log(next->pid, next->policy);								/* ADDED  */
 
 	if (likely(prev != next)) {
 		rq->nr_switches++;
@@ -1150,8 +1191,11 @@ void set_user_nice(task_t *p, long nice)
 		 * If the task is running and lowered its priority,
 		 * or increased its priority then reschedule its CPU:
 		 */
-		if ((NICE_TO_PRIO(nice) < p->static_prio) || (p == rq->curr))
+		if ((NICE_TO_PRIO(nice) < p->static_prio) || (p == rq->curr)) {
+			if (rq->curr->reason = TS_ENDED || rq->curr->reason == NO_REASON)
+				rq->curr->reason = RET_FROM_WAIT;
 			resched_task(rq->curr);
+		}
 	}
 out_unlock:
 	task_rq_unlock(rq, &flags);
@@ -1299,14 +1343,20 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if (policy != SCHED_OTHER && policy != SCHED_LSHORT)            /*  ADDED +CHANGED from here  */
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else if(policy == SCHED_LSHORT){  
-			p->remaining_time = lp.lshort_params.requested_time;                             
+			p->remaining_time = lp.lshort_params.requested_time;
 			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp->lshort_params.level);
 			p->prio -= (30 + 20);  /* SHIFT + NICE */
 			p->remaining_time = lp.lshort_params.requested_time;
 			p->requested_time = lp.lshort_params.requested_time;
 		}
 		else
-			p->prio = p->static_prio;                               /* to here */
+			p->prio = p->static_prio;
+		if(prefer(rq->curr,p) == 0){								// CHANGED (p prefered)//
+			if (rq->curr->reason == TS_ENDED || rq->curr->reason == NO_REASON){
+				rq->curr->reason = RET_FROM_WAIT;
+			}
+			resched_task(rq->curr);
+		}															/* to here */
 	if (array)
 		activate_task(p, task_rq(p));
 
