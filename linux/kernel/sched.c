@@ -855,6 +855,9 @@ void scheduler_tick(int user_tick, int system)
 			p->prio = 1;
 			set_tsk_need_resched(p);
 			enqueue_task(p,rq->overdue_lshort);
+			if (p->reason>LSHORT_BECAME_OVERDUE || p->reason == NO_REASON){
+					p->reason = LSHORT_BECAME_OVERDUE;
+				} /* ADDED Tests */
 			goto out;
 		} else if(p->array == rq->overdue_lshort){
 			p->overdue_time++;
@@ -863,6 +866,9 @@ void scheduler_tick(int user_tick, int system)
 				dequeue_task(p,p->array);
 				p->remaining_time = MAX_TIMESLICE / 2;
 				enqueue_task(p,p->array);
+				if (p->reason == NO_REASON){
+					p->reason = TS_ENDED;
+				} /* ADDED Tests */
 			}
 			goto out;
 		} 
@@ -881,6 +887,9 @@ void scheduler_tick(int user_tick, int system)
 		if (!--p->time_slice) {
 			dequeue_task(p, rq->active);
 			set_tsk_need_resched(p);
+			if (p->reason == NO_REASON){
+				p->reason = TS_ENDED;
+			} /* ADDED Tests */
 			p->prio = effective_prio(p);
 			p->first_time_slice = 0;
 			p->time_slice = TASK_TIMESLICE(p);
@@ -942,7 +951,7 @@ need_resched:
 		logs_remain = MAX_EVENTS_TO_LOG;
 		if (prev->reason == NO_REASON)
 			prev->reason = TASK_ENDED;
-	}											 /* to here */
+	} /* ADDED Tests */											 /* to here */
 	switch (prev->state) {
 	case TASK_INTERRUPTIBLE:
 		if (unlikely(signal_pending(prev))) {
@@ -950,6 +959,9 @@ need_resched:
 			break;
 		}
 	default:
+		if (prev->reason> PREV_TASK_WAIT || prev->reason == NO_REASON){
+			prev->reason = PREV_TASK_WAIT;
+		} /* ADDED Tests */
 		deactivate_task(prev, rq);
 	case TASK_RUNNING:
 		;
@@ -1568,6 +1580,9 @@ asmlinkage long sys_sched_yield(void)    /*CHANGE ??? */
 	__set_bit(i, array->bitmap);
 
 out_unlock:
+	if (current->reason>TASK_YIELD || current->reason == NO_REASON){
+		current->reason = TASK_YIELD;
+	} /* ADDED Tests */
 	spin_unlock(&rq->lock);
 
 	schedule();
