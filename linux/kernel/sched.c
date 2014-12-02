@@ -851,6 +851,7 @@ void scheduler_tick(int user_tick, int system)
 		if (!(--p->remaining_time) && p->array != rq->overdue_lshort){ 
 			dequeue_task(p,rq->lshort);
 			p->array = rq->overdue_lshort;
+			p->overdue_time = 0;
 			p->remaining_time = MAX_TIMESLICE / 2;
 			p->prio = 1;
 			set_tsk_need_resched(p);

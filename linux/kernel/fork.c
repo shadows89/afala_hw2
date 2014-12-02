@@ -725,10 +725,23 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	__cli();
 	if (!current->time_slice)
 		BUG();
-	p->time_slice = (current->time_slice + 1) >> 1;
-	p->first_time_slice = 1;
-	current->time_slice >>= 1;
+	if(current->policy != SCHED_LSHORT){
+		p->time_slice = (current->time_slice + 1) >> 1;
+		p->first_time_slice = 1;
+		current->time_slice >>= 1;
+	}
 	p->sleep_timestamp = jiffies;
+	if(current->policy == SCHED_LSHORT && current->remaining_time != 0){         /*ADDED from here*/
+		if(p->overdue_time != -1){
+			p->requested_time = 0;
+			p->remaining_time = 150 * HZ / 1000;
+		}
+		else {
+			p->requested_time = current->remaining_time * 51 / 100;
+			p->remaining_time = p->requested_time;
+			current->remaining_time -= p->remaining_time;
+		}
+	}                                                               /* to here */
 	if (!current->time_slice) {
 		/*
 		 * This case is rare, it happens when the parent has only
