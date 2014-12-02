@@ -1,0 +1,64 @@
+sched.c: In function `log':
+sched.c:171: invalid use of undefined type `struct switch_info'
+sched.c:172: invalid use of undefined type `struct switch_info'
+sched.c:173: invalid use of undefined type `struct switch_info'
+sched.c:174: invalid use of undefined type `struct switch_info'
+sched.c:175: invalid use of undefined type `struct switch_info'
+sched.c:176: invalid use of undefined type `struct switch_info'
+sched.c: In function `prefer':
+sched.c:186: warning: implicit declaration of function `this_rq'
+sched.c:186: warning: initialization makes pointer from integer without a cast
+sched.c:188: warning: implicit declaration of function `rt_task'
+sched.c:190: warning: suggest parentheses around && within ||
+sched.c:190: parse error before '{' token
+sched.c:186: warning: unused variable `rq'
+sched.c: At top level:
+sched.c:534: parse error before '*' token
+sched.c:537: `prev' undeclared here (not in a function)
+sched.c:539: parse error before "if"
+sched.c:541: parse error before '&' token
+sched.c:541: warning: type defaults to `int' in declaration of `atomic_inc'
+sched.c:541: warning: function declaration isn't a prototype
+sched.c:541: conflicting types for `atomic_inc'
+/usr/src/linux-2.4.18-14custom/include/asm/atomic.h:106: previous declaration of `atomic_inc'
+sched.c:541: warning: data definition has no type or storage class
+sched.c:542: parse error before numeric constant
+sched.c:542: warning: type defaults to `int' in declaration of `enter_lazy_tlb'
+sched.c:542: warning: function declaration isn't a prototype
+sched.c:542: conflicting types for `enter_lazy_tlb'
+/usr/src/linux-2.4.18-14custom/include/asm/mmu_context.h:24: previous declaration of `enter_lazy_tlb'
+sched.c:542: warning: data definition has no type or storage class
+sched.c:548: warning: type defaults to `int' in declaration of `mmdrop'
+sched.c:548: warning: parameter names (without types) in function declaration
+sched.c:548: conflicting types for `mmdrop'
+/usr/src/linux-2.4.18-14custom/include/linux/sched.h:825: previous declaration of `mmdrop'
+sched.c:548: warning: data definition has no type or storage class
+sched.c:549: parse error before '}' token
+sched.c: In function `scheduler_tick':
+sched.c:833: parse error before '{' token
+sched.c:859: warning: suggest parentheses around assignment used as truth value
+sched.c:860: structure has no member named `overdue_time'
+sched.c: In function `try_find_lshort':
+sched.c:909: invalid type argument of `->'
+sched.c:910: invalid type argument of `->'
+sched.c:911: invalid type argument of `->'
+sched.c: In function `schedule':
+sched.c:976: incompatible type for argument 1 of `try_find_lshort'
+sched.c:991: incompatible type for argument 1 of `try_find_lshort'
+sched.c:1007: warning: implicit declaration of function `context_switch'
+sched.c:1007: warning: assignment makes pointer from integer without a cast
+sched.c: In function `set_user_nice':
+sched.c:1186: invalid lvalue in assignment
+sched.c:1204: warning: suggest parentheses around assignment used as truth value
+sched.c: In function `setscheduler':
+sched.c:1356: invalid type argument of `->'
+sched.c:1359: structure has no member named `requested_time'
+sched.c: In function `sys_sched_getparam':
+sched.c:1426: structure has no member named `requested_time'
+sched.c: In function `sys_sched_yield':
+sched.c:1543: warning: unused variable `rq'
+sched.c: At top level:
+sched.c:32: storage size of `log_events' isn't known
+make[2]: *** [sched.o] Error 1
+make[1]: *** [first_rule] Error 2
+make: *** [_dir_kernel] Error 2

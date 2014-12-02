@@ -464,6 +464,7 @@ struct task_struct {
 	int remaining_time;
 	int used_time;
 	int level;
+	int reason;
 };
 
 /*
