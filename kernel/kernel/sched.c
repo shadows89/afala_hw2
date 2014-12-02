@@ -469,22 +469,24 @@ int wake_up_process(task_t * p)
 	return try_to_wake_up(p, 0);
 }
 
-void wake_up_forked_process(task_t * p)
+void wake_up_forked_process(task_t * p)      /* TODO */
 {
 	runqueue_t *rq = this_rq_lock();
 
 	p->state = TASK_RUNNING;
-	if (!rt_task(p)) {
+	if (p->policy != SCHED_LSHORT && !rt_task(p)) {   	/*ADDED*/
+
 		/*
 		 * We decrease the sleep average of forking parents
 		 * and children as well, to keep max-interactive tasks
 		 * from forking tasks that are max-interactive.
 		 */
-		current->sleep_avg = current->sleep_avg * PARENT_PENALTY / 100;
+		 if(current->policy != SCHED_LSHORT)										/*ADDED*/
+			current->sleep_avg = current->sleep_avg * PARENT_PENALTY / 100;
 		p->sleep_avg = p->sleep_avg * CHILD_PENALTY / 100;
 		p->prio = effective_prio(p);
 	}
-	p->cpu = smp_processor_id();
+	p->cpu = smp_processor_id();     /* ADD ???? */
 	activate_task(p, rq);
 
 	rq_unlock(rq);
@@ -502,6 +504,10 @@ void wake_up_forked_process(task_t * p)
 void sched_exit(task_t * p)
 {
 	__cli();
+	if(p->policy == SCHED_LSHORT){                     /*ADDED from here*/
+		__sti();
+		return;		
+	}													/*to here*/
 	if (p->first_time_slice) {
 		current->time_slice += p->time_slice;
 		if (unlikely(current->time_slice > MAX_TIMESLICE))
@@ -525,7 +531,7 @@ asmlinkage void schedule_tail(task_t *prev)
 }
 #endif
 
-static inline task_t * context_switch(task_t *prev, task_t *next)
+static inline task_t * (task_t *prev, task_t *next)
 {
 	struct mm_struct *mm = next->mm;
 	struct mm_struct *oldmm = prev->active_mm;
@@ -1171,11 +1177,14 @@ void set_user_nice(task_t *p, long nice)
 
 	if (TASK_NICE(p) == nice || nice < -20 || nice > 19)
 		return;
+	
 	/*
 	 * We have to be careful, if called from sys_setpriority(),
 	 * the task might be in the middle of scheduling on another CPU.
 	 */
 	rq = task_rq_lock(p, &flags);
+	if(p->policy == SCHED_LSHORT && p->array = rq->overdue_lshort)   /*ADDED*/
+		goto out_unlock;											 /*ADDED*/
 	if (rt_task(p)) {
 		p->static_prio = NICE_TO_PRIO(nice);
 		goto out_unlock;
@@ -1529,7 +1538,7 @@ out_unlock:
 	return real_len;
 }
 
-asmlinkage long sys_sched_yield(void)
+asmlinkage long sys_sched_yield(void)    /*CHANGE ??? */
 {
 	runqueue_t *rq = this_rq_lock();
 	prio_array_t *array = current->array;
