@@ -2090,6 +2090,26 @@ int ll_copy_from_user(void *to, const void *from_user, unsigned long len)
 	return 0;
 }
 
+int sys_get_scheduling_statistic(struct switch_info *info){
+	if(info == NULL)
+		return -1;
+	struct switch_info tmp_array[LOG_ARRAY_SIZE];
+	int tmp_len = logs_number * sizeof(struct switch_info);
+	int index_to_start = log_next_index;
+
+	if (logs_number != 0){
+		if (logs_number >= LOG_ARRAY_SIZE){				// Copy from index_to_start
+			memcpy(tmp_array, log_events + index_to_start, (logs_number - index_to_start) * sizeof(struct switch_info));
+			memcpy(tmp_array + logs_number - index_to_start, log_events, index_to_start * sizeof(struct switch_info));			
+		} else {										// Copy from the begining
+			memcpy(tmp_array, log_events, tmp_len);
+		}
+	}
+	if (copy_to_user(info, tmp_array, tmp_len) != 0)
+		return -EINVAL;
+	return logs_number;
+}
+
 #ifdef CONFIG_LOLAT_SYSCTL
 struct low_latency_enable_struct __enable_lowlatency = { 0, };
 #endif
