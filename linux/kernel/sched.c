@@ -163,12 +163,12 @@ void log_start() {
 void log(int pid, int policy){												/* ADDED from here */
 	// No need to log. 30 event were already logged
 	if (logs_remain == 0){
-		// current->reason = NO_REASON; // TODO FOR WHYYYY?
+		current->reason = NO_REASON; // TODO FOR WHYYYY?
 		return;
 	}
 	// TODO unknown reason
 	else if (current->pid == pid && current->reason != TASK_YIELD){
-		// current->reason = NO_REASON; // TODO WHYYYYY?
+		current->reason = NO_REASON; // TODO WHYYYYY?
 		return;
 	}
 	// UPDATE LOG
