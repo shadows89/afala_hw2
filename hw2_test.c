@@ -3,9 +3,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-char* switch_reason[] = {"No reason","Task created","Task ended","Task yields","LSGORT became OVERDUE","Previous task waiting",
-						"Change in the scheduling parameters","Task returns from waiting (higher prio)", "Timeslice ended (prev task)"};
-char* policies[] = {"Real time (fifo and rr)","LSHORT","Other","Overdue LSHORT","Idle"};
+char* switch_reason[] = {"No reason", "Task created", "Task ended", "Task yields", "LSHORT became OVERDUE", "Previous task waiting",
+						"Change in the scheduling parameters", "Task returns from waiting (higher prio)", "Timeslice ended (prev task)"};
+char* policies[] = {"Real time", "LSHORT", "Other", "Overdue LSHORT", "Idle"};
 
 #define LOG_ARRAY_SIZE 150								/* ADDED log array for test from here*/
 #define MAX_EVENTS_TO_LOG 30
@@ -25,7 +25,7 @@ struct sched_param {
 	union{
 		int sched_priority;
 		struct lshort_sched_param lshort_params;  /* ADDED */
-	}
+	};
 };
 
 int fibonaci(int n) {
@@ -83,9 +83,9 @@ int main(int argc, char** argv){
 		printf("get_scheduling_statistic ERROR: ret=%d, errno=%d\n", logs_number, errno);
 		exit (-1);
 	}
-	printf("prev_p   next_p        prev_policy          next_policy                   time      reason\n");
+	printf("prev_p   next_p       prev_policy      next_policy     time    reason\n");
 	for (i = 0; i < logs_number; i++)
-		printf("%04d     %04d    %8s   %8s       %lu %s\n",
+		printf("%04d     %04d    %14s   %14s       %lu %s\n",
 			info[i].previous_pid, info[i].next_pid,
 			policies[info[i].previous_policy], policies[info[i].next_policy],
 			info[i].time, switch_reason[info[i].reason]);
