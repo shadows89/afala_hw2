@@ -860,9 +860,9 @@ void scheduler_tick(int user_tick, int system)
 			p->prio = 1;
 			set_tsk_need_resched(p);
 			enqueue_task(p,rq->overdue_lshort);
-			if (p->reason>LSHORT_BECAME_OVERDUE || p->reason == NO_REASON){
-					p->reason = LSHORT_BECAME_OVERDUE;
-				} /* ADDED Tests */
+			if (p->reason > LSHORT_BECAME_OVERDUE || p->reason == NO_REASON){
+				p->reason = LSHORT_BECAME_OVERDUE;
+			} /* ADDED Tests */
 			goto out;
 		} else if(p->array == rq->overdue_lshort){
 			p->overdue_time++;

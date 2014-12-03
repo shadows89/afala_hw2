@@ -5,7 +5,7 @@
 
 char* switch_reason[] = {"No reason", "Task created", "Task ended", "Task yields", "LSHORT became OVERDUE", "Previous task waiting",
 						"Change in the scheduling parameters", "Task returns from waiting (higher prio)", "Timeslice ended (prev task)"};
-char* policies[] = {"Real time", "LSHORT", "Other", "Overdue LSHORT", "Idle"};
+char* policies[] = {"Other", "FIFO", "RR", "LSHORT"};
 
 #define LOG_ARRAY_SIZE 150								/* ADDED log array for test from here*/
 #define MAX_EVENTS_TO_LOG 30
