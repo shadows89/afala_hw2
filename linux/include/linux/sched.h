@@ -581,6 +581,7 @@ extern struct exec_domain	default_exec_domain;
     alloc_lock:		SPIN_LOCK_UNLOCKED,				\
     journal_info:	NULL,						\
     remaining_time: -1,						\
+    requested_time: -1,						\
 	overdue_time:   -1,						\
 	level:      -1,						\
 	reason:      0,						\
