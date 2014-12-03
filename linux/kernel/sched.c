@@ -156,6 +156,10 @@ struct runqueue {
 	list_t migration_queue;
 } ____cacheline_aligned;
 
+void log_start() {
+	logs_remain = MAX_EVENTS_TO_LOG;
+}
+
 void log(int pid, int policy){												/* ADDED from here */
 	// No need to log. 30 event were already logged
 	if (logs_remain == 0){
@@ -949,7 +953,7 @@ need_resched:
 	prev->sleep_timestamp = jiffies;
 	spin_lock_irq(&rq->lock);
 	if (prev->state==TASK_ZOMBIE) {				 /* ADDED from here */
-		logs_remain = MAX_EVENTS_TO_LOG;
+		log_start();
 		if (prev->reason == NO_REASON)
 			prev->reason = TASK_ENDED;
 	} /* ADDED Tests */											 /* to here */

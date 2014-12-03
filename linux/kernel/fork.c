@@ -805,7 +805,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 			current->reason = TASK_CREATED;
 		}
 	}
-	logs_remain = MAX_EVENTS_TO_LOG;
+	log_start();
 fork_out:
 	return retval;
 

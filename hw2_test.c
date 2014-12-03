@@ -72,19 +72,19 @@ int main(int argc, char** argv){
 
 		int res = sched_setscheduler(pid, SCHED_LSHORT, &param);
 		if (res)
-			printf("sched_setscheduler ERROR. ret= %d, errno=%d\n", res, errno);
+			printf("sched_setscheduler ERROR: ret= %d, errno=%d\n", res, errno);
 		else
 			printf("level=%d, fib_num=%d, pid=%d\n", level, fib_num, pid);
 	}
 	while (wait() != -1);
 	struct switch_info info[LOG_ARRAY_SIZE];
-	int len = get_scheduling_statistic(info);
-	if (len<0) {
-		printf("get statistics error, ret=%d, errno=%d\n", len, errno);
+	int logs_number = get_scheduling_statistic(info);
+	if (logs_number < 0) {
+		printf("get_scheduling_statistic ERROR: ret=%d, errno=%d\n", logs_number, errno);
 		exit (-1);
 	}
 	printf("prev_p   next_p        prev_policy          next_policy                   time      reason\n");
-	for (i = 0; i < len; i++)
+	for (i = 0; i < logs_number; i++)
 		printf("%04d     %04d    %8s   %8s       %lu %s\n",
 			info[i].previous_pid, info[i].next_pid,
 			policies[info[i].previous_policy], policies[info[i].next_policy],
