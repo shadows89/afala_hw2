@@ -24,6 +24,9 @@
 #include <linux/compiler.h>
 #include <linux/mman.h>
 
+#define LOG_ARRAY_SIZE 150								/* ADDED log array for test from here*/
+#define MAX_EVENTS_TO_LOG 30
+enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PREV_TASK_WAIT, SCHED_PARAM_CHANGE, RET_FROM_WAIT, TS_ENDED};
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <asm/uaccess.h>
@@ -792,13 +795,17 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	++total_forks;
 	if (clone_flags & CLONE_VFORK)
 		wait_for_completion(&vfork);
-	else
+	else {
 		/*
 		 * Let the child process run first, to avoid most of the
 		 * COW overhead when the child exec()s afterwards.
 		 */
 		current->need_resched = 1;
-
+		if (current->reason > TASK_CREATED || current->reason == NO_REASON){
+			current->reason = TASK_CREATED;
+		}
+	}
+	logs_remain = MAX_EVENTS_TO_LOG;
 fork_out:
 	return retval;
 

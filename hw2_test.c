@@ -22,8 +22,10 @@ struct lshort_sched_param {
 };
 
 struct sched_param {
-	int sched_priority;
-	struct lshort_sched_param lshort_params;  /* ADDED */
+	union{
+		int sched_priority;
+		struct lshort_sched_param lshort_params;  /* ADDED */
+	}
 };
 
 int fibonaci(int n) {
@@ -34,41 +36,43 @@ int fibonaci(int n) {
 }
 
 int main(int argc, char** argv){
-	int pid;
-	int i;
+	int pid, i;
 	for (i = 1; i < argc; ){
-		int requested_time = strtol(argv[i++], NULL, 0);
-		if(requested_time < 0){
+	//	int requested_time = strtol(argv[i++], NULL, 0);
+		int requested_time = atoi(argv[i++]);
+		if(requested_time < 0 || requested_time > 30000){ // ADDED for checker
 			printf("Invalid requested time!!!\n");
 			exit(0);
 		}
-		int level = strtol(argv[i++], NULL, 0);
+	//	int level = strtol(argv[i++], NULL, 0);
+		int level = atoi(argv[i++]);
 		if(level < 1 || level > 50 ){
-			printf("Invalid level!!!\n");
+			printf("Level ERROR!\n");
 			exit(0);
 		}
-		int fib_num= strtol(argv[i++], NULL, 0);
+	//	int fib_num= strtol(argv[i++], NULL, 0);
+		int fib_num= atoi(argv[i++]);
 		
 		pid = fork();
-		if (pid==0) {
+		if (!pid) {
 			usleep(40000);
 			fibonaci(fib_num);
 			exit(0);
 		} 
-		else if(pid<0){
-			perror("error forking");
+		else if(pid < 0){
+			perror("Fork ERROR!\n");
 			exit(1);
 		}
 
 		struct sched_param param;
 
-		param.sched_priority = 0;
+		// param.sched_priority = 0;
 		param.lshort_params.requested_time = requested_time;
 		param.lshort_params.level = level;
 
 		int res = sched_setscheduler(pid, SCHED_LSHORT, &param);
 		if (res)
-			printf("error. setsched ret= %d,errno value=%d\n", res, errno);
+			printf("sched_setscheduler ERROR. ret= %d, errno=%d\n", res, errno);
 		else
 			printf("level=%d, fib_num=%d, pid=%d\n", level, fib_num, pid);
 	}
@@ -79,7 +83,7 @@ int main(int argc, char** argv){
 		printf("get statistics error, ret=%d, errno=%d\n", len, errno);
 		exit (-1);
 	}
-	printf("prev_p-next_p---prev_policy---next_policy---time---reason\n");
+	printf("prev_p   next_p        prev_policy          next_policy                   time      reason\n");
 	for (i = 0; i < len; i++)
 		printf("%04d     %04d    %8s   %8s       %lu %s\n",
 			info[i].previous_pid, info[i].next_pid,
