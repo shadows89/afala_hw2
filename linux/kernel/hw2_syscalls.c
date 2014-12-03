@@ -33,9 +33,4 @@ int sys_lshort_query_overdue_time(int pid){
 		return pd->overdue_time;
 	return 0;
 }
- 
-int sys_get_scheduling_statistic(struct switch_info *info){
-	if(info == NULL)
-		return -1;
-	return -1;
-}
+
