@@ -71,7 +71,7 @@ enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PR
 #define MAX_SLEEP_AVG		(2*HZ)
 #define STARVATION_LIMIT	(2*HZ)
 
-#define MAX_REQUESTED_TIME  (30 * HZ) 															/* ADDED */
+#define MAX_REQUESTED_TIME  (30 * 1000) 															/* ADDED */
 #define LSHORT_BONUS(remaining_time,level)  (2*level*(.5 - remaining_time/MAX_REQUESTED_TIME))	/* ADDED */	
 
 /*
@@ -967,6 +967,7 @@ need_resched:
 	case TASK_RUNNING:
 		;
 	}
+
 #if CONFIG_SMP
 pick_next_task:
 #endif
@@ -980,13 +981,14 @@ pick_next_task:
 		rq->expired_timestamp = 0;
 		goto switch_tasks;
 	}
-
 	array = rq->active;
 	if (unlikely(!array->nr_active)) {
 		/*
 		 * Switch the active and expired arrays.
 		 */
-		next = try_find_lshort(rq->overdue_lshort);			 	/* ADDED from here */
+		next = try_find_lshort(rq->lshort);
+		if(next == NULL)
+			next = try_find_lshort(rq->overdue_lshort);			 	/* ADDED from here */
 		if(next == NULL){
 			rq->active = rq->expired;
 			rq->expired = array;
@@ -996,7 +998,6 @@ pick_next_task:
 		else
 			goto switch_tasks;									/* to here */
 	}
-
 	idx = sched_find_first_bit(array->bitmap);
 	queue = array->queue + idx;
 	next = list_entry(queue->next, task_t, run_list);
@@ -1005,7 +1006,6 @@ pick_next_task:
 		if(possible != NULL)
 			next = possible;
 	}															/* to here */	
-
 switch_tasks:
 	prefetch(next);
 	clear_tsk_need_resched(prev);
@@ -1295,8 +1295,10 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	runqueue_t *rq;
 	task_t *p;
 
-	if (!param || pid < 0)
-		goto out_nounlock;
+	if (!param || pid < 0){
+			printk("SOME SHIT");
+			goto out_unlock;
+		}	
 
 	retval = -EFAULT;
 	if (copy_from_user(&lp, param, sizeof(struct sched_param)))
@@ -1324,8 +1326,10 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	else {
 		retval = -EINVAL;
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
-				policy != SCHED_OTHER && policy != SCHED_LSHORT)  /*ADDED*/
+				policy != SCHED_OTHER && policy != SCHED_LSHORT){
+			printk("INVALID POLICY");
 			goto out_unlock;
+		}
 	}
 
 	/*
@@ -1334,12 +1338,14 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	 */
 
 	retval = -EINVAL;
-	if (lp.sched_priority < 0 || lp.sched_priority > MAX_USER_RT_PRIO-1)
-		goto out_unlock;
-	if ((policy == SCHED_OTHER) != (lp.sched_priority == 0))
-		goto out_unlock;
-	if (policy == SCHED_LSHORT){         /* ADDED from here */
-		if(p->policy != SCHED_OTHER)			
+	if (policy != SCHED_LSHORT){ 
+		if (lp.sched_priority < 0 || lp.sched_priority > MAX_USER_RT_PRIO-1)
+			goto out_unlock;
+		if ((policy == SCHED_OTHER) != (lp.sched_priority == 0))
+			goto out_unlock;
+	}
+	else{        /* ADDED from here */
+		if(p->policy != SCHED_OTHER)
 			goto out_unlock;
 		if(lp.lshort_params.requested_time > MAX_REQUESTED_TIME || lp.lshort_params.requested_time <= 0)
 			goto out_unlock;
@@ -1361,14 +1367,15 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		deactivate_task(p, task_rq(p));
 	retval = 0;
 	p->policy = policy;
-	p->rt_priority = lp.sched_priority;
+	if (policy != SCHED_LSHORT) 
+		p->rt_priority = lp.sched_priority;
 	if (policy != SCHED_OTHER && policy != SCHED_LSHORT)            /*  ADDED +CHANGED from here  */
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else if(policy == SCHED_LSHORT){  
 			p->remaining_time = lp.lshort_params.requested_time;
 			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp.lshort_params.level);
 			p->prio -= (30 + 20);  /* SHIFT + NICE */
-			p->remaining_time = lp.lshort_params.requested_time;
+			p->level = lp.lshort_params.level;
 			p->requested_time = lp.lshort_params.requested_time;
 		}
 		else

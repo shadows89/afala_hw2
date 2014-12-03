@@ -137,8 +137,10 @@ struct lshort_sched_param {
 };
 
 struct sched_param {
-	int sched_priority;
-	struct lshort_sched_param lshort_params;  /* ADDED */
+	union{
+		int sched_priority;
+		struct lshort_sched_param lshort_params;  /* ADDED */
+	}
 };
 
 struct completion;

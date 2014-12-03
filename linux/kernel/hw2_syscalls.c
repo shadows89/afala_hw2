@@ -18,9 +18,9 @@ int sys_lshort_query_remaining_time(int pid){
 	struct task_struct *pd = checkPid(pid);
 	if(pd == NULL || pd->policy != SCHED_LSHORT)
 		return -EINVAL;
-	if(pd->policy == SCHED_LSHORT)
+	if(pd->policy == SCHED_LSHORT  && pd->overdue_time == -1)
 		return pd->remaining_time;
-	return -1;
+	return 0;
 }
 
 int sys_lshort_query_overdue_time(int pid){
@@ -29,11 +29,11 @@ int sys_lshort_query_overdue_time(int pid){
 	struct task_struct *pd = checkPid(pid);
 	if(pd == NULL || pd->policy != SCHED_LSHORT)
 		return -EINVAL;
-	if(pd->policy == SCHED_LSHORT)
+	if(pd->policy == SCHED_LSHORT && pd->overdue_time != -1)
 		return pd->overdue_time;
-	return -1;
+	return 0;
 }
-
+ 
 int sys_get_scheduling_statistic(struct switch_info *info){
 	if(info == NULL)
 		return -1;
