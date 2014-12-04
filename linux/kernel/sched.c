@@ -864,14 +864,14 @@ void scheduler_tick(int user_tick, int system)
 				p->reason = LSHORT_BECAME_OVERDUE;
 			} /* ADDED Tests */
 			goto out;
-		} else if(p->array == rq->overdue_lshort){
+		} else if (p->array == rq->overdue_lshort) {
 			p->overdue_time++;
 			if(!(p->remaining_time)){
 				set_tsk_need_resched(p);
 				dequeue_task(p,p->array);
 				p->remaining_time = MAX_TIMESLICE / 2;
 				enqueue_task(p,p->array);
-				if (p->reason == NO_REASON){
+				if (p->reason == NO_REASON || p->reason == LSHORT_BECAME_OVERDUE){
 					p->reason = TS_ENDED;
 				} /* ADDED Tests */
 			}
@@ -1221,6 +1221,8 @@ void set_user_nice(task_t *p, long nice)
 			if (rq->curr->reason == TS_ENDED || rq->curr->reason == NO_REASON)
 				rq->curr->reason = RET_FROM_WAIT;
 			resched_task(rq->curr);
+			if (p != rq->curr) 
+				p->reason = SCHED_PARAM_CHANGE;
 		}
 	}
 out_unlock:
@@ -1389,6 +1391,8 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 				rq->curr->reason = RET_FROM_WAIT;
 			}
 			resched_task(rq->curr);
+			if (p != rq->curr) 					//ADDED
+				p->reason = SCHED_PARAM_CHANGE;
 		}															/* to here */
 	if (array)
 		activate_task(p, task_rq(p));
