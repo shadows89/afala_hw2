@@ -747,6 +747,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 			current->remaining_time = TICK_TO_MS(current->remaining_time);
 			p->remaining_time = p->requested_time;
 			current->remaining_time -= p->remaining_time;
+			current->prio = current->static_prio -  2 * current->level * ( 0.5 - current->remaining_time / (30 * HZ));
 			p->remaining_time = MS_TO_TICK(p->remaining_time);
 			current->remaining_time = MS_TO_TICK(current->remaining_time);
 			p->requested_time = MS_TO_TICK(p->requested_time);

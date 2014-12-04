@@ -72,7 +72,7 @@ enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PR
 #define STARVATION_LIMIT	(2*HZ)
 
 #define MAX_REQUESTED_TIME  (30 * HZ) 															/* ADDED */
-#define LSHORT_BONUS(remaining_time,level)  (2*level*(.5 - remaining_time/MAX_REQUESTED_TIME))	/* ADDED */	
+#define LSHORT_BONUS(remaining_time,level) (2 * level * ( 0.5 - remaining_time / TICK_TO_MS(MAX_REQUESTED_TIME)))	/* ADDED */	
 
  #define TICK_TO_MS(ticks) (ticks * 1000 / HZ)
  #define MS_TO_TICK(ms) (ms * HZ / 1000 )
@@ -349,7 +349,7 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 		p->prio = effective_prio(p);
 	}
 	if(p->policy == SCHED_LSHORT)
-		p->prio = p->static_prio -  LSHORT_BONUS(p->remaining_time * 1000 / HZ , p->level);
+		p->prio = p->static_prio - LSHORT_BONUS(TICK_TO_MS(p->remaining_time), p->level);
 	enqueue_task(p, array);
 	rq->nr_running++;
 }
@@ -496,6 +496,10 @@ void wake_up_forked_process(task_t * p)      /* TODO */
 		p->prio = effective_prio(p);
 	}
 	p->cpu = smp_processor_id();     /* ADD ???? */
+	if(p->policy == SCHED_LSHORT && current->overdue_time != -1){
+		dequeue_task(current,current->array);
+		enqueue_task(current,current->array);
+	}
 	activate_task(p, rq);
 
 	rq_unlock(rq);
@@ -1216,7 +1220,7 @@ void set_user_nice(task_t *p, long nice)
 		dequeue_task(p, array);
 	p->static_prio = NICE_TO_PRIO(nice);
 	if(p->policy == SCHED_LSHORT)
-		p->prio = p->static_prio -  LSHORT_BONUS( TICK_TO_MS(p->remaining_time) ,p->level);
+		p->prio = p->static_prio - LSHORT_BONUS( TICK_TO_MS(p->remaining_time) ,p->level);
 	else
 		p->prio = NICE_TO_PRIO(nice);
 	if (array) {
@@ -1383,9 +1387,15 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else if(policy == SCHED_LSHORT){  
 			p->level = lp.lshort_params.level;
-			p->requested_time = MS_TO_TICK(lp.lshort_params.requested_time);
+			p->remaining_time = lp.lshort_params.requested_time;
 			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp.lshort_params.level);
-			p->remaining_time = MS_TO_TICK(lp.lshort_params.requested_time);
+			if(MS_TO_TICK(lp.lshort_params.requested_time) == 0){
+				p->requested_time = 1;
+				p->remaining_time = 1;	
+			} else {
+				p->requested_time = MS_TO_TICK(lp.lshort_params.requested_time);
+				p->remaining_time = MS_TO_TICK(lp.lshort_params.requested_time);
+			}
 			p->prio -= (30 + 20);  /* SHIFT + NICE */
 			p->array = rq->lshort;
 		}

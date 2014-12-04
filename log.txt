@@ -1,0 +1,160 @@
+sched_setscheduler ERROR: ret= -1, errno=22
+level=1, fib_num=5, pid=1214
+level=1, fib_num=43, pid=1215
+                                            sched_setscheduler ERROR: ret= -1, errno=22
+level=1, fib_num=5, pid=1214
+sched_setscheduler ERROR: ret= -1, errno=22
+level=1, fib_num=5, pid=1214
+level=1, fib_num=43, pid=1215
+level=1, fib_num=10, pid=1216
+prev_p   next_p       prev_policy      next_policy     time    reason
+1102     1210             Other            Other       247674 Previous task waiting
+1210     1211             Other            Other       247674 Previous task waiting
+1211     0427             Other            Other       247674 Task returns from waiting (higher prio)
+0427     1211             Other            Other       247674 Previous task waiting
+1211     1209             Other            Other       247674 Previous task waiting
+1209     0427             Other            Other       247674 Task returns from waiting (higher prio)
+0427     1209             Other            Other       247674 Previous task waiting
+1209     0427             Other            Other       247674 Previous task waiting
+0427     0000             Other            Other       247678 Previous task waiting
+0000     0988             Other            Other       247685 Task returns from waiting (higher prio)
+0988     0000             Other            Other       247685 Previous task waiting
+0000     1102             Other            Other       247699 Task returns from waiting (higher prio)
+1102     0988             Other            Other       247699 Task returns from waiting (higher prio)
+0988     1102             Other            Other       247699 Previous task waiting
+1102     0988             Other            Other       247699 Task returns from waiting (higher prio)
+0988     1102             Other            Other       247699 Previous task waiting
+1102     0000             Other            Other       247699 Previous task waiting
+0000     0988             Other            Other       247710 Task returns from waiting (higher prio)
+0988     1000             Other            Other       247710 Previous task waiting
+1000     0988             Other            Other       247710 Task returns from waiting (higher prio)
+0988     1000             Other            Other       247710 Previous task waiting
+1000     1075             Other            Other       247710 Previous task waiting
+1075     0988             Other            Other       247710 Task returns from waiting (higher prio)
+0988     1075             Other            Other       247710 Previous task waiting
+1075     0988             Other            Other       247710 Task returns from waiting (higher prio)
+0988     1075             Other            Other       247710 Previous task waiting
+1075     0988             Other            Other       247710 Task returns from waiting (higher prio)
+0988     1075             Other            Other       247710 Previous task waiting
+1075     1073             Other            Other       247710 Previous task waiting
+1073     0988             Other            Other       247710 Task returns from waiting (higher prio)
+0988     1073             Other            Other       247710 Previous task waiting
+1073     0988             Other            Other       247710 Task returns from waiting (higher prio)
+0988     1073             Other            Other       247711 Previous task waiting
+1073     0988             Other            Other       247711 Task returns from waiting (higher prio)
+0988     1073             Other            Other       247711 Previous task waiting
+1073     0988             Other            Other       247711 Task returns from waiting (higher prio)
+0988     1073             Other            Other       247712 Previous task waiting
+1110     1212             Other            Other       255309 Previous task waiting
+1212     0427             Other            Other       255310 Previous task waiting
+0427     1212             Other            Other       255310 Previous task waiting
+1212     0427             Other            Other       255310 Previous task waiting
+0427     1212             Other            Other       255310 Previous task waiting
+1212     0427             Other            Other       255310 Previous task waiting
+0427     1212             Other            Other       255311 Previous task waiting
+1212     0427             Other            Other       255311 Previous task waiting
+0427     1212             Other            Other       255311 Previous task waiting
+1212     0427             Other            Other       255311 Previous task waiting
+0427     1212             Other            Other       255311 Previous task waiting
+1212     0427             Other            Other       255311 Previous task waiting
+0427     1212             Other            Other       255311 Previous task waiting
+1212     0427             Other            Other       255311 Previous task waiting
+0427     1212             Other            Other       255312 Previous task waiting
+1212     0427             Other            Other       255312 Previous task waiting
+0427     1212             Other            Other       255312 Previous task waiting
+1212     0427             Other            Other       255312 Previous task waiting
+0427     1212             Other            Other       255312 Previous task waiting
+1212     0427             Other            Other       255312 Previous task waiting
+0427     1212             Other            Other       255312 Previous task waiting
+1212     0427             Other            Other       255312 Previous task waiting
+0427     1213             Other            Other       255312 Previous task waiting
+1213     1212             Other            Other       255312 Previous task waiting
+1212     1214             Other           LSHORT       255312 Task returns from waiting (higher prio)
+1214     1212            LSHORT            Other       255312 Previous task waiting
+1212     1215             Other           LSHORT       255312 Task returns from waiting (higher prio)
+1215     1212            LSHORT            Other       255312 Previous task waiting
+1212     1216             Other           LSHORT       255312 Task returns from waiting (higher prio)
+1216     1212            LSHORT            Other       255312 Previous task waiting
+1212     0000             Other            Other       255312 Previous task waiting
+0000     0988             Other            Other       255318 Task returns from waiting (higher prio)
+0988     0000             Other            Other       255318 Previous task waiting
+0000     1102             Other            Other       255320 Task returns from waiting (higher prio)
+1102     0988             Other            Other       255320 Task returns from waiting (higher prio)
+0988     1102             Other            Other       255320 Previous task waiting
+1102     0988             Other            Other       255320 Task returns from waiting (higher prio)
+0988     1102             Other            Other       255320 Previous task waiting
+1102     0000             Other            Other       255320 Previous task waiting
+0000     0427             Other            Other       255323 Task returns from waiting (higher prio)
+0427     0000             Other            Other       255323 Previous task waiting
+0000     0988             Other            Other       255331 Task returns from waiting (higher prio)
+0988     0000             Other            Other       255331 Previous task waiting
+0000     1214             Other           LSHORT       255334 Task returns from waiting (higher prio)
+1214     1215            LSHORT           LSHORT       255334 Previous task waiting
+1215     1216            LSHORT           LSHORT       255846 LSHORT became OVERDUE
+1216     0988            LSHORT            Other       255846 Previous task waiting
+0988     0427             Other            Other       255846 Previous task waiting
+0427     1214             Other           LSHORT       255846 Task returns from waiting (higher prio)
+1214     0427            LSHORT            Other       255846 Previous task waiting
+0427     1216             Other           LSHORT       255846 Task returns from waiting (higher prio)
+1216     0427            LSHORT            Other       255846 Previous task waiting
+0427     1102             Other            Other       255846 Previous task waiting
+1102     0988             Other            Other       255846 Task returns from waiting (higher prio)
+0988     1102             Other            Other       255846 Previous task waiting
+1102     0988             Other            Other       255846 Task returns from waiting (higher prio)
+0988     1102             Other            Other       255846 Previous task waiting
+1102     0002             Other            Other       255846 Previous task waiting
+0002     0988             Other            Other       255846 Previous task waiting
+0988     1082             Other            Other       255846 Previous task waiting
+1082     0869             Other            Other       255846 Previous task waiting
+0869     1104             Other            Other       255846 Previous task waiting
+1104     1096             Other            Other       255846 Previous task waiting
+1096     1109             Other            Other       255846 Previous task waiting
+1109     0988             Other            Other       255846 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255846 Previous task waiting
+1109     0988             Other            Other       255846 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255846 Previous task waiting
+1109     0988             Other            Other       255846 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255846 Previous task waiting
+1109     0988             Other            Other       255846 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255846 Previous task waiting
+1109     0988             Other            Other       255846 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255846 Previous task waiting
+1109     0988             Other            Other       255847 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255848 Previous task waiting
+1109     0988             Other            Other       255848 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255848 Previous task waiting
+1109     0988             Other            Other       255848 Task returns from waiting (higher prio)
+0988     1109             Other            Other       255849 Previous task waiting
+1109     0988             Other            Other       255849 Task returns from waiting (higher prio)
+1213     1212             Other            Other       255849 Previous task waiting
+1212     1215             Other           LSHORT       255849 Previous task waiting
+1215     0988            LSHORT            Other       255925 LSHORT became OVERDUE
+0988     1102             Other            Other       255925 Previous task waiting
+1102     0988             Other            Other       255925 Task returns from waiting (higher prio)
+0988     1102             Other            Other       255925 Previous task waiting
+1102     0988             Other            Other       255925 Task returns from waiting (higher prio)
+0988     1102             Other            Other       255925 Previous task waiting
+1102     0001             Other            Other       255925 Previous task waiting
+0001     0427             Other            Other       255925 Previous task waiting
+0427     1215             Other           LSHORT       255925 Previous task waiting
+1215     0988            LSHORT            Other       256001 LSHORT became OVERDUE
+0988     1102             Other            Other       256001 Previous task waiting
+1102     0988             Other            Other       256001 Task returns from waiting (higher prio)
+0988     1102             Other            Other       256001 Previous task waiting
+1102     0988             Other            Other       256001 Task returns from waiting (higher prio)
+0988     1102             Other            Other       256001 Previous task waiting
+1102     0427             Other            Other       256001 Previous task waiting
+0427     1215             Other           LSHORT       256001 Previous task waiting
+1215     0988            LSHORT            Other       256077 LSHORT became OVERDUE
+0988     1102             Other            Other       256077 Previous task waiting
+1102     0988             Other            Other       256077 Task returns from waiting (higher prio)
+0988     1102             Other            Other       256077 Previous task waiting
+1102     0988             Other            Other       256077 Task returns from waiting (higher prio)
+0988     1102             Other            Other       256077 Previous task waiting
+1102     0427             Other            Other       256077 Previous task waiting
+0427     1215             Other           LSHORT       256077 Previous task waiting
+1215     0988            LSHORT            Other       256153 LSHORT became OVERDUE
+0988     1102             Other            Other       256153 Previous task waiting
+1102     0988             Other            Other       256153 Task returns from waiting (higher prio)
+1215     0427            LSHORT            Other       258105 Task ended
+0427     1212             Other            Other       258105 Previous task waiting
