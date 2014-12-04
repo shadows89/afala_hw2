@@ -71,8 +71,11 @@ enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PR
 #define MAX_SLEEP_AVG		(2*HZ)
 #define STARVATION_LIMIT	(2*HZ)
 
-#define MAX_REQUESTED_TIME  (30 * 1000) 															/* ADDED */
+#define MAX_REQUESTED_TIME  (30 * HZ) 															/* ADDED */
 #define LSHORT_BONUS(remaining_time,level)  (2*level*(.5 - remaining_time/MAX_REQUESTED_TIME))	/* ADDED */	
+
+ #define TICK_TO_MS(ticks) (ticks * 1000 / HZ)
+ #define MS_TO_TICK(ms) (ms * HZ / 1000 )
 
 /*
  * If a task is 'interactive' then we reinsert it in the active
@@ -345,6 +348,8 @@ static inline void activate_task(task_t *p, runqueue_t *rq)
 			p->sleep_avg = MAX_SLEEP_AVG;
 		p->prio = effective_prio(p);
 	}
+	if(p->policy == SCHED_LSHORT)
+		p->prio = p->static_prio -  LSHORT_BONUS(p->remaining_time * 1000 / HZ , p->level);
 	enqueue_task(p, array);
 	rq->nr_running++;
 }
@@ -1202,7 +1207,7 @@ void set_user_nice(task_t *p, long nice)
 	rq = task_rq_lock(p, &flags);
 	if(p->policy == SCHED_LSHORT && p->array == rq->overdue_lshort)   /*ADDED*/
 		goto out_unlock;											 /*ADDED*/
-	if (rt_task(p)) {
+	if (rt_task(p) && p->policy != SCHED_LSHORT) {
 		p->static_prio = NICE_TO_PRIO(nice);
 		goto out_unlock;
 	}
@@ -1210,7 +1215,10 @@ void set_user_nice(task_t *p, long nice)
 	if (array)
 		dequeue_task(p, array);
 	p->static_prio = NICE_TO_PRIO(nice);
-	p->prio = NICE_TO_PRIO(nice);
+	if(p->policy == SCHED_LSHORT)
+		p->prio = p->static_prio -  LSHORT_BONUS( TICK_TO_MS(p->remaining_time) ,p->level);
+	else
+		p->prio = NICE_TO_PRIO(nice);
 	if (array) {
 		enqueue_task(p, array);
 		/*
@@ -1302,7 +1310,6 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	task_t *p;
 
 	if (!param || pid < 0){
-			printk("SOME SHIT");
 			goto out_unlock;
 		}	
 
@@ -1333,7 +1340,6 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		retval = -EINVAL;
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
 				policy != SCHED_OTHER && policy != SCHED_LSHORT){
-			printk("INVALID POLICY");
 			goto out_unlock;
 		}
 	}
@@ -1378,11 +1384,12 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	if (policy != SCHED_OTHER && policy != SCHED_LSHORT)            /*  ADDED +CHANGED from here  */
 		p->prio = MAX_USER_RT_PRIO-1 - p->rt_priority;
 	else if(policy == SCHED_LSHORT){  
-			p->remaining_time = lp.lshort_params.requested_time;
-			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp.lshort_params.level);
-			p->prio -= (30 + 20);  /* SHIFT + NICE */
 			p->level = lp.lshort_params.level;
-			p->requested_time = lp.lshort_params.requested_time;
+			p->requested_time = MS_TO_TICK(lp.lshort_params.requested_time);
+			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,lp.lshort_params.level);
+			p->remaining_time = MS_TO_TICK(lp.lshort_params.requested_time);
+			p->prio -= (30 + 20);  /* SHIFT + NICE */
+			p->array = rq->lshort;
 		}
 		else
 			p->prio = p->static_prio;
@@ -1450,9 +1457,12 @@ asmlinkage long sys_sched_getparam(pid_t pid, struct sched_param *param)
 	retval = -ESRCH;
 	if (!p)
 		goto out_unlock;
-	lp.sched_priority = p->rt_priority;
-	lp.lshort_params.requested_time = p->requested_time; /*ADDED*/
-	lp.lshort_params.level = p->level;                   /*ADDED*/
+	if(p->policy != SCHED_LSHORT)
+		lp.sched_priority = p->rt_priority;
+	else{
+		lp.lshort_params.requested_time = TICK_TO_MS(p->requested_time); /*ADDED*/
+		lp.lshort_params.level = p->level;
+	}                   /*ADDED*/
 	read_unlock(&tasklist_lock);
 
 	/*
