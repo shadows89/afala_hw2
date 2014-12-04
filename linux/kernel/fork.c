@@ -29,6 +29,9 @@
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 
+ #define TICK_TO_MS(ticks) (ticks * 1000 / HZ)
+ #define MS_TO_TICK(ms) (ms * HZ / 1000 )
+
 /* The idle threads do not count.. */
 int nr_threads;
 
@@ -732,17 +735,21 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	}
 	p->sleep_timestamp = jiffies;
 	if(current->policy == SCHED_LSHORT && current->remaining_time != 0){         /*ADDED from here*/
-		if(p->overdue_time != -1){
+		if(current->overdue_time != -1){
 			p->requested_time = 0;
 			p->remaining_time = 150 * HZ / 1000;
 		}
 		else {
-			p->requested_time = current->remaining_time * 51 / 100;
+			p->requested_time = TICK_TO_MS(current->remaining_time) * 51 / 100;
+			current->remaining_time = TICK_TO_MS(current->remaining_time);
 			p->remaining_time = p->requested_time;
 			current->remaining_time -= p->remaining_time;
+			p->remaining_time = MS_TO_TICK(p->remaining_time);
+			current->remaining_time = MS_TO_TICK(current->remaining_time);
+			p->requested_time = MS_TO_TICK(p->requested_time);
 		}
 	}                                                               /* to here */
-	if (!current->time_slice) {
+	if (!current->time_slice && p->policy != SCHED_LSHORT) {
 		/*
 		 * This case is rare, it happens when the parent has only
 		 * a single jiffy left from its timeslice. Taking the

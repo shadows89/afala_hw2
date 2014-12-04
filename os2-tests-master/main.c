@@ -281,7 +281,6 @@ static int test_other_preempts_overdue() {
 			exit(1);
 		}
 	}
-
 	if (end.tv_sec - start.tv_sec < 1)
 		return 0;
 	return 1;
@@ -321,9 +320,10 @@ static int __fork_child_requested_time(void *p) {
 	if (become_lshort(1000, 20) != 0)
 		return 0;
 	rem = rem_time(getpid());
+	printf("%d\n",rem);
 	child_req_time = run_forked(____fork_child_requested_time, NULL);
-
-	return (rem * 51 / 100) == child_req_time;
+	printf("%d\n",child_req_time);
+	return  child_req_time >= (rem * 508 / 1000) && child_req_time <= (rem * 51 / 100) ;
 }
 
 static int test_fork_requested_time() {
@@ -336,6 +336,7 @@ static int __fork_parent_remaining_time(void *p) {
 	if (become_lshort(1000, 20) != 0)
 		return 0;
 	rem = rem_time(getpid());
+	printf("%d\n",rem);
 	switch (fork()) {
 	case -1:
 		perror("fork");
@@ -343,8 +344,8 @@ static int __fork_parent_remaining_time(void *p) {
 		exit(1);
 	}
 	rem_after_fork = rem_time(getpid());
-
-	return (rem * 49  / 100) == rem_after_fork;
+	printf("%d\n",rem_after_fork);
+	return rem_after_fork >= (rem * 488 / 1000) && rem_after_fork <= (rem * 49  / 100) ;
 }
 
 static int test_fork_parent_remaining_time() {
