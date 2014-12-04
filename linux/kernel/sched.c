@@ -159,15 +159,19 @@ struct runqueue {
 	list_t migration_queue;
 } ____cacheline_aligned;
 
+void log_start() {
+	logs_remain = MAX_EVENTS_TO_LOG;
+}
+
 void log(int pid, int policy){												/* ADDED from here */
 	// No need to log. 30 event were already logged
 	if (logs_remain == 0){
-		// current->reason = NO_REASON; // TODO FOR WHYYYY?
+		current->reason = NO_REASON; // TODO FOR WHYYYY?
 		return;
 	}
 	// TODO unknown reason
 	else if (current->pid == pid && current->reason != TASK_YIELD){
-		// current->reason = NO_REASON; // TODO WHYYYYY?
+		current->reason = NO_REASON; // TODO WHYYYYY?
 		return;
 	}
 	// UPDATE LOG
@@ -861,9 +865,9 @@ void scheduler_tick(int user_tick, int system)
 			p->prio = 1;
 			set_tsk_need_resched(p);
 			enqueue_task(p,rq->overdue_lshort);
-			if (p->reason>LSHORT_BECAME_OVERDUE || p->reason == NO_REASON){
-					p->reason = LSHORT_BECAME_OVERDUE;
-				} /* ADDED Tests */
+			if (p->reason > LSHORT_BECAME_OVERDUE || p->reason == NO_REASON){
+				p->reason = LSHORT_BECAME_OVERDUE;
+			} /* ADDED Tests */
 			goto out;
 		} else if(p->array == rq->overdue_lshort){
 			p->overdue_time++;
@@ -954,7 +958,7 @@ need_resched:
 	prev->sleep_timestamp = jiffies;
 	spin_lock_irq(&rq->lock);
 	if (prev->state==TASK_ZOMBIE) {				 /* ADDED from here */
-		logs_remain = MAX_EVENTS_TO_LOG;
+		log_start();
 		if (prev->reason == NO_REASON)
 			prev->reason = TASK_ENDED;
 	} /* ADDED Tests */											 /* to here */
