@@ -38,19 +38,19 @@ int fibonaci(int n) {
 int main(int argc, char** argv){
 	int pid, i;
 	for (i = 1; i < argc; ){
-	//	int requested_time = strtol(argv[i++], NULL, 0);
+
 		int requested_time = atoi(argv[i++]);
 		if(requested_time < 0 || requested_time > 30000){ // ADDED for checker
 			printf("Invalid requested time!!!\n");
 			exit(0);
 		}
-	//	int level = strtol(argv[i++], NULL, 0);
+
 		int level = atoi(argv[i++]);
 		if(level < 1 || level > 50 ){
 			printf("Level ERROR!\n");
 			exit(0);
 		}
-	//	int fib_num= strtol(argv[i++], NULL, 0);
+	
 		int fib_num= atoi(argv[i++]);
 		
 		pid = fork();
@@ -59,7 +59,7 @@ int main(int argc, char** argv){
 			fibonaci(fib_num);
 			exit(0);
 		} 
-		else if(pid < 0){
+		else if (pid < 0) {
 			perror("Fork ERROR!\n");
 			exit(1);
 		}
@@ -72,9 +72,9 @@ int main(int argc, char** argv){
 
 		int res = sched_setscheduler(pid, SCHED_LSHORT, &param);
 		if (res)
-			printf("sched_setscheduler ERROR: ret= %d, errno=%d\n", res, errno);
+			printf("sched_setscheduler ERROR: ret= %d, errno=%d pid=%d level=%d requested_time=%d, fib_num=%d\n", res, errno, pid, level, requested_time, fib_num);
 		else
-			printf("level=%d, fib_num=%d, pid=%d\n", level, fib_num, pid);
+			printf("requested_time=%d level=%d, fib_num=%d, pid=%d\n", requested_time,level, fib_num, pid);
 	}
 	while (wait() != -1);
 	struct switch_info info[LOG_ARRAY_SIZE];
