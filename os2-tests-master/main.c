@@ -1,3 +1,4 @@
+#include <sys/select.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -5,6 +6,7 @@
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <syscall.h>
 #include <time.h>
 #include <unistd.h>
@@ -281,6 +283,7 @@ static int test_other_preempts_overdue() {
 			exit(1);
 		}
 	}
+
 	if (end.tv_sec - start.tv_sec < 1)
 		return 0;
 	return 1;
@@ -317,13 +320,16 @@ static int ____fork_child_requested_time(void *p) {
 static int __fork_child_requested_time(void *p) {
 	int rem;
 	int child_req_time;
+	int assumed_time;
+
 	if (become_lshort(1000, 20) != 0)
 		return 0;
 	rem = rem_time(getpid());
-	printf("%d\n",rem);
 	child_req_time = run_forked(____fork_child_requested_time, NULL);
-	printf("%d\n",child_req_time);
-	return  child_req_time >= (rem * 508 / 1000) && child_req_time <= (rem * 51 / 100) ;
+
+	assumed_time = (rem * 51) / 100;
+	return (assumed_time - 10) <  child_req_time &&
+		(assumed_time + 10) > child_req_time;
 }
 
 static int test_fork_requested_time() {
@@ -333,10 +339,10 @@ static int test_fork_requested_time() {
 static int __fork_parent_remaining_time(void *p) {
 	int rem;
 	int rem_after_fork;
+	int assumed_time;
 	if (become_lshort(1000, 20) != 0)
 		return 0;
 	rem = rem_time(getpid());
-	printf("%d\n",rem);
 	switch (fork()) {
 	case -1:
 		perror("fork");
@@ -344,8 +350,11 @@ static int __fork_parent_remaining_time(void *p) {
 		exit(1);
 	}
 	rem_after_fork = rem_time(getpid());
-	printf("%d\n",rem_after_fork);
-	return rem_after_fork >= (rem * 488 / 1000) && rem_after_fork <= (rem * 49  / 100) ;
+
+	assumed_time = rem - (rem * 51) / 100;
+
+	return (assumed_time - 10) < rem_after_fork &&
+		(assumed_time + 10) > rem_after_fork;
 }
 
 static int test_fork_parent_remaining_time() {
@@ -365,6 +374,144 @@ static int __fork_child_overdue_requested_time(void *p) {
 
 static int test_fork_overdue_requested_time() {
 	return run_forked(__fork_child_overdue_requested_time, NULL);
+}
+
+#define NR_KIDS 4
+#define FIXTURE "*3210"
+static int __lshort_correct_prio(void *p) {
+	pid_t children[NR_KIDS];
+	int pipes[2];
+	char buf[NR_KIDS + 1];
+	int i;
+	fd_set fds;
+	FD_ZERO(&fds);
+
+	if (pipe(pipes)) {
+		perror("pipe");
+		return 0;
+	}
+	FD_SET(pipes[0], &fds);
+
+	if (become_lshort(30 * 1000, 50) != 0)
+		return 0;
+
+	for (i = 0; i < NR_KIDS; i++) {
+		children[i] = fork();
+		if (!children[i]) {
+			char c = '0' + i;
+			select(pipes[0] + 1, &fds, NULL, NULL, NULL);
+			while (write(pipes[1], &c, 1) != 1)
+				;
+			exit(0);
+		}
+	}
+
+	sleep(1);
+	write(pipes[1], "*", 1);
+
+	for (i = 0; i < NR_KIDS; i++) {
+		waitpid(children[i], NULL, 0);
+	}
+
+	if (read(pipes[0], buf, NR_KIDS + 1) != NR_KIDS + 1)
+		return 0;
+	close(pipes[0]);
+	close(pipes[1]);
+	return memcmp(buf, FIXTURE, NR_KIDS + 1) == 0;
+}
+
+static int test_lshort_correct_prio() {
+	return run_forked(__lshort_correct_prio, NULL);
+}
+
+static int __lshort_correct_prio1(void *p) {
+	pid_t children[3];
+	int pipes[2];
+	char buf[4];
+	int i;
+	fd_set fds;
+	FD_ZERO(&fds);
+
+	if (pipe(pipes)) {
+		perror("pipe");
+		return 0;
+	}
+	FD_SET(pipes[0], &fds);
+
+	for (i = 0; i < 3; i++) {
+		children[i] = fork();
+		if (!children[i]) {
+			char c = '0' + i;
+			if (become_lshort(30 * 1000, 1 + i * 10) != 0)
+				exit(1);
+
+			select(pipes[0] + 1, &fds, NULL, NULL, NULL);
+			while (write(pipes[1], &c, 1) != 1)
+				;
+			exit(0);
+		}
+	}
+
+	sleep(1);
+	write(pipes[1], "*", 1);
+
+	for (i = 0; i < 3; i++) {
+		waitpid(children[i], NULL, 0);
+	}
+
+	if (read(pipes[0], buf, 4) != 4)
+		return 0;
+	close(pipes[0]);
+	close(pipes[1]);
+	return memcmp(buf, "*012", 4) == 0;
+}
+
+static int test_lshort_correct_prio1() {
+	return run_forked(__lshort_correct_prio1, NULL);
+}
+
+static int __lshort_correct_prio2(void *p) {
+	pid_t children[3];
+	int pipes[2];
+	char buf[4];
+	int i;
+	fd_set fds;
+	FD_ZERO(&fds);
+
+	if (pipe(pipes)) {
+		perror("pipe");
+		return 0;
+	}
+	FD_SET(pipes[0], &fds);
+
+	for (i = 0; i < 3; i++) {
+		children[i] = fork();
+		if (!children[i]) {
+			char c = '0' + i;
+			if (become_lshort(3 * 1000, 1 + i * 10) != 0)
+				exit(1);
+			select(pipes[0] + 1, &fds, NULL, NULL, NULL);
+			while (write(pipes[1], &c, 1) != 1)
+				;
+			exit(0);
+		}
+	}
+	sleep(1);
+	write(pipes[1], "*", 1);
+
+	for (i = 0; i < 3; i++) {
+		waitpid(children[i], NULL, 0);
+	}
+
+	if (read(pipes[0], buf, 4) != 4)
+		return 0;
+	close(pipes[0]);
+	close(pipes[1]);
+	return memcmp(buf, "*210", 4) == 0;
+}
+
+static int test_lshort_correct_prio2() {
+	return run_forked(__lshort_correct_prio2, NULL);
 }
 
 static int test_read_stats_150_records() {
@@ -400,6 +547,9 @@ struct test_def tests[] = {
 	DEFINE_TEST(test_fork_requested_time),
 	DEFINE_TEST(test_fork_parent_remaining_time),
 	DEFINE_TEST(test_fork_overdue_requested_time),
+	DEFINE_TEST(test_lshort_correct_prio),
+	DEFINE_TEST(test_lshort_correct_prio1),
+	DEFINE_TEST(test_lshort_correct_prio2),
 	DEFINE_TEST(test_read_stats_150_records),
 	{ NULL, "The end" },
 };
@@ -407,7 +557,7 @@ struct test_def tests[] = {
 int main() {
 	struct test_def *current = &tests[0];
 	while (current->func) {
-		printf("%s:\t%s\n",
+		printf("%-35s:\t%s\n",
 		       current->name,
 		       (1 == current->func()) ? "PASS" : "FAIL");
 		current++;
