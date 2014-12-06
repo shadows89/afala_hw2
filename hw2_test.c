@@ -55,7 +55,7 @@ int main(int argc, char** argv){
 		
 		pid = fork();
 		if (!pid) {
-			usleep(40000);
+			usleep(60000);
 			fibonaci(fib_num);
 			exit(0);
 		} 
@@ -66,7 +66,6 @@ int main(int argc, char** argv){
 
 		struct sched_param param;
 
-		// param.sched_priority = 0;
 		param.lshort_params.requested_time = requested_time;
 		param.lshort_params.level = level;
 
@@ -83,9 +82,9 @@ int main(int argc, char** argv){
 		printf("get_scheduling_statistic ERROR: ret=%d, errno=%d\n", logs_number, errno);
 		exit (-1);
 	}
-	printf("prev_p   next_p       prev_policy      next_policy     time    reason\n");
+	printf("prev_pid   next_pid       prev_policy      next_policy     time    reason\n");
 	for (i = 0; i < logs_number; i++)
-		printf("%04d     %04d    %14s   %14s       %lu %s\n",
+		printf("%04d       %04d    %14s   %14s         %lu %s\n",
 			info[i].previous_pid, info[i].next_pid,
 			policies[info[i].previous_policy], policies[info[i].next_policy],
 			info[i].time, switch_reason[info[i].reason]);
