@@ -42,27 +42,28 @@ int main(int argc, char** argv){
 		int requested_time = atoi(argv[i++]);
 		if(requested_time < 0 || requested_time > 30000){ // ADDED for checker
 			printf("Invalid requested time!!!\n");
-			exit(0);
+			exit(1);
 		}
 
 		int level = atoi(argv[i++]);
 		if(level < 1 || level > 50 ){
 			printf("Level ERROR!\n");
-			exit(0);
+			exit(2);
 		}
 	
 		int fib_num= atoi(argv[i++]);
 		
 		pid = fork();
-		if (!pid) {
+		
+		if  (pid < 0) {
+			perror("Fork ERROR!\n");
+			exit(3);
+		}
+		else if (!pid) {
 			usleep(60000);
 			fibonaci(fib_num);
 			exit(0);
 		} 
-		else if (pid < 0) {
-			perror("Fork ERROR!\n");
-			exit(1);
-		}
 
 		struct sched_param param;
 
@@ -70,6 +71,7 @@ int main(int argc, char** argv){
 		param.lshort_params.level = level;
 
 		int res = sched_setscheduler(pid, SCHED_LSHORT, &param);
+	
 		if (res)
 			printf("sched_setscheduler ERROR: ret= %d, errno=%d pid=%d level=%d requested_time=%d, fib_num=%d\n", res, errno, pid, level, requested_time, fib_num);
 		else
