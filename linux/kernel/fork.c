@@ -743,10 +743,10 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 			p->remaining_time = 150 * HZ / 1000;
 		}
 		else {
-			p->requested_time = current->remaining_time * 51 / 100;
+			p->requested_time = (current->remaining_time * 51) / 100;
 			p->remaining_time = p->requested_time;
 			current->remaining_time -= p->remaining_time;
-			p->prio = p->static_prio - p->level + (2 * p->level * p->remaining_time * HZ) / 30  - 50;  /*NEW*/
+			p->prio = p->static_prio - p->level + (2 * p->level * p->remaining_time ) / (30 * HZ)  - 50;  /*NEW*/
 		}
 	}                                                               /* to here */
 	if (!current->time_slice && p->policy != SCHED_LSHORT) {
