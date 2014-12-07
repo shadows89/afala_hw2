@@ -1002,14 +1002,8 @@ pick_next_task:
 		rq->expired_timestamp = 0;
 		goto switch_tasks;
 	}
-	//array = rq->active;//we try first run rt, and than mq,normal, and overdue last
-	// if (array->nr_active && sched_find_first_bit(array->bitmap) < MAX_RT_PRIO)
-	// 	goto get_task;
-	// array = rq->lshort;
-	// if (array->nr_active)
-	// 	goto get_task;
-	// if (rq->active->nr_active || rq->expired->nr_active) {
-		array = rq->active;
+	
+	array = rq->active;
 	if (unlikely(!array->nr_active)) {
 		/*
 		 * Switch the active and expired arrays.
@@ -1023,10 +1017,9 @@ pick_next_task:
 			array = rq->active;
 			rq->expired_timestamp = 0;
 		}	
-			goto get_task;									/* to here */
+		else
+			goto switch_tasks; 								/* to here */
 	}
-array = rq->overdue_lshort;
-get_task:
 	idx = sched_find_first_bit(array->bitmap);
 	queue = array->queue + idx;
 	next = list_entry(queue->next, task_t, run_list);
