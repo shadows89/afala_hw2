@@ -42,35 +42,36 @@ int main(int argc, char** argv){
 		int requested_time = atoi(argv[i++]);
 		if(requested_time < 0 || requested_time > 30000){ // ADDED for checker
 			printf("Invalid requested time!!!\n");
-			exit(0);
+			exit(1);
 		}
 
 		int level = atoi(argv[i++]);
 		if(level < 1 || level > 50 ){
 			printf("Level ERROR!\n");
-			exit(0);
+			exit(2);
 		}
 	
 		int fib_num= atoi(argv[i++]);
 		
 		pid = fork();
-		if (!pid) {
-			usleep(40000);
+		
+		if  (pid < 0) {
+			perror("Fork ERROR!\n");
+			exit(3);
+		}
+		else if (!pid) {
+			usleep(60000);
 			fibonaci(fib_num);
 			exit(0);
 		} 
-		else if (pid < 0) {
-			perror("Fork ERROR!\n");
-			exit(1);
-		}
 
 		struct sched_param param;
 
-		// param.sched_priority = 0;
 		param.lshort_params.requested_time = requested_time;
 		param.lshort_params.level = level;
 
 		int res = sched_setscheduler(pid, SCHED_LSHORT, &param);
+	
 		if (res)
 			printf("sched_setscheduler ERROR: ret= %d, errno=%d pid=%d level=%d requested_time=%d, fib_num=%d\n", res, errno, pid, level, requested_time, fib_num);
 		else
@@ -83,9 +84,9 @@ int main(int argc, char** argv){
 		printf("get_scheduling_statistic ERROR: ret=%d, errno=%d\n", logs_number, errno);
 		exit (-1);
 	}
-	printf("prev_p   next_p       prev_policy      next_policy     time    reason\n");
+	printf("prev_pid   next_pid       prev_policy      next_policy     time    reason\n");
 	for (i = 0; i < logs_number; i++)
-		printf("%04d     %04d    %14s   %14s       %lu %s\n",
+		printf("%04d       %04d    %14s   %14s         %lu %s\n",
 			info[i].previous_pid, info[i].next_pid,
 			policies[info[i].previous_policy], policies[info[i].next_policy],
 			info[i].time, switch_reason[info[i].reason]);

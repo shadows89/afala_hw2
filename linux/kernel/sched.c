@@ -217,17 +217,17 @@ int prefer(task_t * curr, task_t * poss){
 	} else if (curr->array == poss->array && curr->array == rq->overdue_lshort ) { 	// Both Overdue
 		return 1;
 	} else if (rt_task(curr) == 1) { 												// curr is RT and poss is not
-		return 1;
+		return 0;
 	} else if (rt_task(poss) == 1) { 												// curr is not RT and poss is RT
-		return 0;
+		return 1;
 	} else if (curr->policy == SCHED_LSHORT) {										// curr is LSHORT and poss is Other or Overdue
-		return 1;
+		return 0;
 	} else if (poss->policy == SCHED_LSHORT) {										// curr is Other or Overdue and poss is LSHORT
-		return 0;
-	} else if (curr->policy == SCHED_OTHER) {										// curr is Other and poss is Overdue
 		return 1;
-	} else if (poss->policy == SCHED_OTHER) {										// curr is Overdue and poss is Other
+	} else if (curr->policy == SCHED_OTHER) {										// curr is Other and poss is Overdue
 		return 0;
+	} else if (poss->policy == SCHED_OTHER) {										// curr is Overdue and poss is Other
+		return 1;
 	}
 	return -1; 																		// not valid. We'll not gonna get here
 }
@@ -880,7 +880,7 @@ void scheduler_tick(int user_tick, int system)
 				dequeue_task(p,p->array);
 				p->remaining_time = MAX_TIMESLICE / 2;
 				enqueue_task(p,p->array);
-				if (p->reason == NO_REASON || p->reason == LSHORT_BECAME_OVERDUE){
+				if (p->reason == NO_REASON){
 					p->reason = TS_ENDED;
 				} /* ADDED Tests */
 			}
@@ -963,7 +963,7 @@ need_resched:
 	spin_lock_irq(&rq->lock);
 	if (prev->state==TASK_ZOMBIE) {				 /* ADDED from here */
 		log_start();
-		if (prev->reason == NO_REASON)
+		if (prev->reason == NO_REASON || prev->reason > TASK_ENDED)		
 			prev->reason = TASK_ENDED;
 	} /* ADDED Tests */											 /* to here */
 	switch (prev->state) {
@@ -1230,11 +1230,10 @@ void set_user_nice(task_t *p, long nice)
 		 * or increased its priority then reschedule its CPU:
 		 */
 		if ((NICE_TO_PRIO(nice) < p->static_prio) || (p == rq->curr)) {
-			if (rq->curr->reason == TS_ENDED || rq->curr->reason == NO_REASON)
-				rq->curr->reason = RET_FROM_WAIT;
+			if (rq->curr->reason == RET_FROM_WAIT || rq->curr->reason == TS_ENDED || rq->curr->reason == NO_REASON)
+				rq->curr->reason = SCHED_PARAM_CHANGE;
 			resched_task(rq->curr);
-			if (p != rq->curr) 
-				p->reason = SCHED_PARAM_CHANGE;
+	
 		}
 	}
 out_unlock:
@@ -1403,13 +1402,11 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 		}
 		else
 			p->prio = p->static_prio;
-		if(prefer(rq->curr,p) == 0){								// CHANGED (p prefered)//
-			if (rq->curr->reason == TS_ENDED || rq->curr->reason == NO_REASON){
-				rq->curr->reason = RET_FROM_WAIT;
+		if(prefer(rq->curr,p) == 0){								
+			if (rq->curr->reason == RET_FROM_WAIT || rq->curr->reason == TS_ENDED || rq->curr->reason == NO_REASON){
+				rq->curr->reason = SCHED_PARAM_CHANGE;
 			}
 			resched_task(rq->curr);
-			if (p != rq->curr) 					//ADDED
-				p->reason = SCHED_PARAM_CHANGE;
 		}															/* to here */
 	if (array)
 		activate_task(p, task_rq(p));
