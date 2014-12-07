@@ -72,7 +72,7 @@ enum {NO_REASON, TASK_CREATED, TASK_ENDED, TASK_YIELD, LSHORT_BECAME_OVERDUE, PR
 #define STARVATION_LIMIT	(2*HZ)
 
 #define MAX_REQUESTED_TIME  (30 * HZ) 															/* ADDED */
-#define LSHORT_BONUS(remaining_time,level) (level - (2 * (level * remaining_time)) / MAX_REQUESTED_TIME)	/* ADDED */	
+#define LSHORT_BONUS(remaining_time,level) (level - (2 * level* remaining_time) / MAX_REQUESTED_TIME)	/* ADDED */	
 
  #define TICK_TO_MS(ticks) (ticks * 1000 / HZ)
  #define MS_TO_TICK(ms) (ms * HZ / 1000 )
@@ -500,6 +500,11 @@ void wake_up_forked_process(task_t * p)      /* TODO */
 		dequeue_task(current,current->array);
 		enqueue_task(current,current->array);
 	}
+	if(p->policy == SCHED_LSHORT){
+		dequeue_task(current,current->array);
+		current->prio = current->static_prio - LSHORT_BONUS(current->remaining_time,current->level) - 50;  /*NEW*/
+		enqueue_task(current,current->array);
+	}
 	activate_task(p, rq);
 
 	rq_unlock(rq);
@@ -859,9 +864,9 @@ void scheduler_tick(int user_tick, int system)
 		}
 		goto out;
 	}
-
 	if (p->policy==SCHED_LSHORT) {                   /*ADDED from here*/
-		if (!(--p->remaining_time) && p->array != rq->overdue_lshort){ 
+		--p->remaining_time;
+		if (!(p->remaining_time) && p->array != rq->overdue_lshort){ 
 			dequeue_task(p,rq->lshort);
 			p->array = rq->overdue_lshort;
 			p->overdue_time = 0;
@@ -885,7 +890,10 @@ void scheduler_tick(int user_tick, int system)
 				} /* ADDED Tests */
 			}
 			goto out;
-		} 
+		}
+		 dequeue_task(p, p->array);
+		 p->prio = p->static_prio - 50 -LSHORT_BONUS(p->remaining_time,p->level);   /* NEW */
+		 enqueue_task(p, p->array);
 	}                                                /* to here*/
 	else{
 		/*
@@ -1220,7 +1228,7 @@ void set_user_nice(task_t *p, long nice)
 		dequeue_task(p, array);
 	p->static_prio = NICE_TO_PRIO(nice);
 	if(p->policy == SCHED_LSHORT)
-		p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time ,p->level);
+		p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time ,p->level) - 50;
 	else
 		p->prio = NICE_TO_PRIO(nice);
 	if (array) {
@@ -1362,7 +1370,7 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 	else{        /* ADDED from here */
 		if(p->policy != SCHED_OTHER)
 			goto out_unlock;
-		if(lp.lshort_params.requested_time > 30*1000 || lp.lshort_params.requested_time <= 0)
+		if(lp.lshort_params.requested_time > 30000 || lp.lshort_params.requested_time <= 0)
 			goto out_unlock;
 		if(lp.lshort_params.level < 1 || lp.lshort_params.level > 50)
 			goto out_unlock;
@@ -1395,8 +1403,8 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 				p->requested_time = MS_TO_TICK(lp.lshort_params.requested_time);
 				p->remaining_time = MS_TO_TICK(lp.lshort_params.requested_time);
 			}
-			p->static_prio = 120;
-			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,p->level);
+			p->remaining_time = MS_TO_TICK(lp.lshort_params.requested_time);
+			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,p->level);    /* NEW */
 			p->prio -= (30 + 20);  /* SHIFT + NICE */
 			p->array = rq->lshort;
 		}
