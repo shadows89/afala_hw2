@@ -495,16 +495,17 @@ void wake_up_forked_process(task_t * p)      /* TODO */
 		p->sleep_avg = p->sleep_avg * CHILD_PENALTY / 100;
 		p->prio = effective_prio(p);
 	}
-	p->cpu = smp_processor_id();
+	
 	if(p->policy == SCHED_LSHORT && current->overdue_time != -1){
 		dequeue_task(current,current->array);
 		enqueue_task(current,current->array);
 	}
-	if(p->policy == SCHED_LSHORT){
+	else if(p->policy == SCHED_LSHORT){
 		dequeue_task(current,current->array);
 		current->prio = current->static_prio - LSHORT_BONUS(current->remaining_time,current->level) - 50;  /*NEW*/
 		enqueue_task(current,current->array);
 	}
+	p->cpu = smp_processor_id();
 	activate_task(p, rq);
 
 	rq_unlock(rq);
