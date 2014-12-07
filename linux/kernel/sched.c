@@ -1402,7 +1402,6 @@ static int setscheduler(pid_t pid, int policy, struct sched_param *param)
 				p->requested_time = MS_TO_TICK(lp.lshort_params.requested_time);
 				p->remaining_time = MS_TO_TICK(lp.lshort_params.requested_time);
 			}
-			p->remaining_time = MS_TO_TICK(lp.lshort_params.requested_time);
 			p->prio = p->static_prio - LSHORT_BONUS(p->remaining_time,p->level);    /* NEW */
 			p->prio -= (30 + 20);  /* SHIFT + NICE */
 			p->array = rq->lshort;
