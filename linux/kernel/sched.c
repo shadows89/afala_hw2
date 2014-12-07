@@ -495,7 +495,7 @@ void wake_up_forked_process(task_t * p)      /* TODO */
 		p->sleep_avg = p->sleep_avg * CHILD_PENALTY / 100;
 		p->prio = effective_prio(p);
 	}
-	p->cpu = smp_processor_id();     /* ADD ???? */
+	p->cpu = smp_processor_id();
 	if(p->policy == SCHED_LSHORT && current->overdue_time != -1){
 		dequeue_task(current,current->array);
 		enqueue_task(current,current->array);
@@ -865,8 +865,7 @@ void scheduler_tick(int user_tick, int system)
 		goto out;
 	}
 	if (p->policy==SCHED_LSHORT) {                   /*ADDED from here*/
-		--p->remaining_time;
-		if (!(p->remaining_time) && p->array != rq->overdue_lshort){ 
+		if (!(--p->remaining_time) && p->array != rq->overdue_lshort){ 
 			dequeue_task(p,rq->lshort);
 			p->array = rq->overdue_lshort;
 			p->overdue_time = 0;
