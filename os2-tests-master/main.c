@@ -375,7 +375,7 @@ static int __fork_child_overdue_requested_time(void *p) {
 static int test_fork_overdue_requested_time() {
 	return run_forked(__fork_child_overdue_requested_time, NULL);
 }
-#define NR_KIDS 4
+/*#define NR_KIDS 4
 #define FIXTURE "*3210"
 static int __lshort_correct_prio(void *p) {
 	pid_t children[NR_KIDS];
@@ -396,6 +396,7 @@ static int __lshort_correct_prio(void *p) {
 
 	for (i = 0; i < NR_KIDS; i++) {
 		children[i] = fork();
+		printf("kakashka\n");
 		if (!children[i]) {
 			char c = '0' + i;
 			select(pipes[0] + 1, &fds, NULL, NULL, NULL);
@@ -422,7 +423,6 @@ static int __lshort_correct_prio(void *p) {
 static int test_lshort_correct_prio() {
 	return run_forked(__lshort_correct_prio, NULL);
 }
-/*
 static int __lshort_correct_prio1(void *p) {
 	pid_t children[3];
 	int pipes[2];
@@ -546,8 +546,8 @@ struct test_def tests[] = {
 	DEFINE_TEST(test_fork_requested_time),
 	DEFINE_TEST(test_fork_parent_remaining_time),
 	DEFINE_TEST(test_fork_overdue_requested_time),
-	DEFINE_TEST(test_lshort_correct_prio),
-	/*DEFINE_TEST(test_lshort_correct_prio1),
+	/*DEFINE_TEST(test_lshort_correct_prio),
+	DEFINE_TEST(test_lshort_correct_prio1),
 	DEFINE_TEST(test_lshort_correct_prio2),*/
 	DEFINE_TEST(test_read_stats_150_records),
 	{ NULL, "The end" },
